@@ -282,8 +282,8 @@ abstract contract StrategyConvexBase is BaseStrategy {
     // These functions are useful for setting parameters of the strategy that may need to be adjusted.
 
     // Set the amount of CRV to be locked in Yearn's veCRV voter from each harvest. Default is 10%.
-    function setKeepCRV(uint256 _keepCRV) external onlyAuthorized {
-        keepCRV = _keepCRV;
+    function setKeepCRV(uint256 _sendToVoter) external onlyAuthorized {
+        keepCRV = _sendToVoter;
     }
 
     // We usually don't need to claim rewards on withdrawals, but might change our mind for migrations etc
@@ -366,9 +366,9 @@ contract StrategyConvexEURt is StrategyConvexBase {
             uint256 crvBalance = crv.balanceOf(address(this));
             uint256 convexBalance = convexToken.balanceOf(address(this));
 
-            uint256 _keepCRV = crvBalance.mul(keepCRV).div(FEE_DENOMINATOR);
-            if (_keepCRV > 0) crv.safeTransfer(voter, _keepCRV);
-            uint256 crvRemainder = crvBalance.sub(_keepCRV);
+            uint256 _sendToVoter = crvBalance.mul(keepCRV).div(FEE_DENOMINATOR);
+            if (_sendToVoter > 0) crv.safeTransfer(voter, _sendToVoter);
+            uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
             if (crvRemainder > 0) _sellCrv(crvRemainder);
             if (convexBalance > 0) _sellConvex(convexBalance);
