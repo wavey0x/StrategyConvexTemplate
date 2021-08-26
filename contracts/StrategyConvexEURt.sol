@@ -93,19 +93,19 @@ abstract contract StrategyConvexBase is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    /* ========== STATE CONSTANTS ========== */
+    /* ========== STATE VARIABLES ========== */
     // these should stay the same across different wants.
 
-    // curve and convex stuff
+    // convex stuff
     address public constant depositContract =
         0xF403C135812408BFbE8713b5A23a04b3D48AAE31; // this is the deposit contract that all pools use, aka booster
     address public rewardsContract; // This is unique to each curve pool
     uint256 public pid; // this is unique to each pool
-    ICurveFi public curve; // Curve Pool, need this for buying more pool tokens
 
+    // keepCRV stuff
+    uint256 public keepCRV; // the percentage of CRV we re-lock for boost (in basis points)
     address public constant voter = 0xF147b8125d2ef93FB6965Db97D6746952a133934; // Yearn's veCRV voter, we send some extra CRV here
-    uint256 public keepCRV = 1000; // the percentage of CRV we re-lock for boost (in basis points)
-    uint256 public constant FEE_DENOMINATOR = 10000; // with this and the above, sending 10% of our CRV yield to our voter
+    uint256 public constant FEE_DENOMINATOR = 10000; // this means all of our fee values are in bips
 
     // Swap stuff
     address public constant sushiswap =
@@ -291,6 +291,8 @@ contract StrategyConvexEURt is StrategyConvexBase {
     // these will likely change across different wants.
     // note that some strategies will require the "optimal" state variable here as well if we choose which token to sell into before depositing
 
+    ICurveFi public curve; // Curve Pool, need this for buying more pool tokens
+
     // uniswap v3 variables
     address public constant uniswapv3 =
         0xE592427A0AEce92De3Edee1F18E0157C05861564;
@@ -318,6 +320,9 @@ contract StrategyConvexEURt is StrategyConvexBase {
         crv.approve(sushiswap, type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
 
+        // set our keepCRV
+        keepCRV = 1000;
+
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
         address lptoken;
@@ -338,14 +343,10 @@ contract StrategyConvexEURt is StrategyConvexBase {
         weth.approve(uniswapv3, type(uint256).max);
 
         // crv token path
-        crvPath = new address[](2);
-        crvPath[0] = address(crv);
-        crvPath[1] = address(weth);
+        crvPath = [address(crv), address(weth)];
 
         // convex token path
-        convexTokenPath = new address[](2);
-        convexTokenPath[0] = address(convexToken);
-        convexTokenPath[1] = address(weth);
+        convexTokenPath = [address(convexToken), address(weth)];
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
