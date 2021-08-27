@@ -121,13 +121,15 @@ abstract contract StrategyConvexBase is BaseStrategy {
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // keeper stuff
-    uint256 public harvestProfitNeeded; // we use this to set our dollar target for harvest sells
+    uint256 public harvestProfitNeeded; // we use this to set our dollar target (in USDT) for harvest sells
     bool internal forceHarvestTriggerOnce; // only set this to true when we want to trigger our keepers to harvest for us
 
     string internal stratName; // we use this to be able to adjust our strategy's name
 
     // convex-specific variables
     bool public claimRewards; // boolean if we should always claim rewards when withdrawing, usually withdrawAndUnwrap (generally this should be false)
+
+    /* ========== CONSTRUCTOR ========== */
 
     constructor(address _vault) public BaseStrategy(_vault) {}
 
@@ -289,7 +291,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
 contract StrategyConvexEURt is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
-    // note that some strategies will require the "optimal" state variable here as well if we choose which token to sell into before depositing
 
     ICurveFi public curve; // Curve Pool, need this for buying more pool tokens
 
@@ -301,6 +302,8 @@ contract StrategyConvexEURt is StrategyConvexBase {
     IERC20 public constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     IOracle public oracle = IOracle(0x0F1f5A87f99f0918e6C81F16E59F3518698221Ff); // this is only needed for strats that use uniV3 for swaps
+
+    /* ========== CONSTRUCTOR ========== */
 
     constructor(
         address _vault,
@@ -323,6 +326,9 @@ contract StrategyConvexEURt is StrategyConvexBase {
         // set our keepCRV
         keepCRV = 1000;
 
+        // this is the pool specific to this vault, used for depositing
+        curve = ICurveFi(_curvePool);
+
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
         address lptoken;
@@ -332,9 +338,6 @@ contract StrategyConvexEURt is StrategyConvexBase {
         // check that our LP token based on our pid matches our want
         require(address(lptoken) == address(want));
 
-        // set our curve pool contract
-        curve = ICurveFi(_curvePool);
-
         // set our strategy's name
         stratName = _name;
 
@@ -342,10 +345,8 @@ contract StrategyConvexEURt is StrategyConvexBase {
         eurt.approve(address(curve), type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
 
-        // crv token path
+        // set our paths
         crvPath = [address(crv), address(weth)];
-
-        // convex token path
         convexTokenPath = [address(convexToken), address(weth)];
     }
 
@@ -478,13 +479,19 @@ contract StrategyConvexEURt is StrategyConvexBase {
         returns (bool)
     {
         // trigger if we want to manually harvest
-        if (forceHarvestTriggerOnce) return true;
+        if (forceHarvestTriggerOnce) {
+            return true;
+        }
 
         // harvest if we have a profit to claim
-        if (claimableProfitInUsdt() > harvestProfitNeeded) return true;
+        if (claimableProfitInUsdt() > harvestProfitNeeded) {
+            return true;
+        }
 
         // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
-        if (!isActive()) return false;
+        if (!isActive()) {
+            return false;
+        }
 
         return super.harvestTrigger(callCostinEth);
     }
