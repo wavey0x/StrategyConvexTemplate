@@ -32,7 +32,7 @@ def amount():
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "StrategyConvexEURt"
+    strategy_name = "StrategyConvexEURT"
     yield strategy_name
 
 
@@ -193,7 +193,7 @@ def vault(pm, gov, rewards, guardian, management, token, chain):
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
 def strategy(
-    StrategyConvexEURt,
+    StrategyConvexEURT,
     strategist,
     keeper,
     vault,
@@ -208,7 +208,7 @@ def strategy(
     strategy_name,
 ):
     # parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed),
-    strategy = strategist.deploy(StrategyConvexEURt, vault, pid, pool, strategy_name)
+    strategy = strategist.deploy(StrategyConvexEURT, vault, pid, pool, strategy_name)
     strategy.setKeeper(keeper, {"from": gov})
     # set our management fee to zero so it doesn't mess with our profit checking
     vault.setManagementFee(0, {"from": gov})
