@@ -216,7 +216,11 @@ def strategy(
 ):
     # make sure to include all constructor parameters needed here
     strategy = strategist.deploy(
-        StrategyConvexcvxCRV, vault, pid, pool, strategy_name,
+        StrategyConvexcvxCRV,
+        vault,
+        pid,
+        pool,
+        strategy_name,
     )
     strategy.setKeeper(keeper, {"from": gov})
     # set our management fee to zero so it doesn't mess with our profit checking

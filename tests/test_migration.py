@@ -32,7 +32,11 @@ def test_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvexcvxCRV, vault, pid, pool, strategy_name,
+        StrategyConvexcvxCRV,
+        vault,
+        pid,
+        pool,
+        strategy_name,
     )
     total_old = strategy.estimatedTotalAssets()
 
