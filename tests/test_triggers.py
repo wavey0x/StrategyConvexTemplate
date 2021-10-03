@@ -60,7 +60,7 @@ def test_triggers(
     # withdraw and confirm we made money
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale
-    
+
     # harvest should trigger false due to high gas price
     dummy_gas_oracle.setDummyBaseFee(400)
     tx = strategy.harvestTrigger(0, {"from": gov})

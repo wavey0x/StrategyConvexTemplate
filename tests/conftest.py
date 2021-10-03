@@ -235,6 +235,7 @@ def strategy(
     chain.sleep(1)
     yield strategy
 
+
 @pytest.fixture(scope="module")
 def dummy_gas_oracle(strategist, dummyBasefee):
     dummy_gas_oracle = strategist.deploy(dummyBasefee)
