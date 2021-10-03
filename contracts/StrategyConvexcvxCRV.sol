@@ -264,6 +264,7 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
     ICurveFi public curve; // Curve Pool, this is our pool specific to this vault
     IERC20 public constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
+    uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends
     IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
 
     /* ========== CONSTRUCTOR ========== */
@@ -308,6 +309,9 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
 
         // set our paths
         convexTokenPath = [address(convexToken), address(weth), address(crv)];
+
+        // set our baseline max gas price
+        maxGasPrice = 100 * 1e9;
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */

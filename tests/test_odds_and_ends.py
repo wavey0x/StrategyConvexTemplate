@@ -24,6 +24,7 @@ def test_odds_and_ends(
     amount,
     pool,
     strategy_name,
+    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
@@ -49,6 +50,7 @@ def test_odds_and_ends(
     assert strategy.estimatedTotalAssets() == 0
 
     # we want to check when we have a loss
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be true.", tx)
     assert tx == True
@@ -172,6 +174,7 @@ def test_odds_and_ends_migration(
     amount,
     pool,
     strategy_name,
+    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
@@ -192,6 +195,7 @@ def test_odds_and_ends_migration(
     total_old = strategy.estimatedTotalAssets()
 
     # can we harvest an unactivated strategy? should be no
+    new_strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = new_strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be False.", tx)
     assert tx == False
@@ -436,6 +440,7 @@ def test_odds_and_ends_inactive_strat(
     voter,
     cvxDeposit,
     amount,
+    dummy_gas_oracle,
 ):
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -451,6 +456,7 @@ def test_odds_and_ends_inactive_strat(
     strategy.harvest({"from": gov})
 
     # we shouldn't harvest empty strategies
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be false.", tx)
     assert tx == False
@@ -474,12 +480,14 @@ def test_odds_and_ends_inactive_strat(
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
 
     # we should harvest empty strategies with profit to take, but our current profit is below our limit
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be false.", tx)
     assert tx == False
 
     # adjust our limit to 0, then check
     strategy.setHarvestProfitNeeded(0, {"from": gov})
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be true.", tx)
     assert tx == True
