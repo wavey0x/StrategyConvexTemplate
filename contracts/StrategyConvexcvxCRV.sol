@@ -71,6 +71,10 @@ interface IConvexDeposit {
         );
 }
 
+interface IBaseFee {
+    function basefee_global() external view returns (uint256);
+}
+
 abstract contract StrategyConvexBase is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
@@ -260,6 +264,7 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
     ICurveFi public curve; // Curve Pool, this is our pool specific to this vault
     IERC20 public constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
+    IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -270,9 +275,9 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
         string memory _name
     ) public StrategyConvexBase(_vault) {
         // You can set these parameters on deployment to whatever you want
-        maxReportDelay = 7 days; // 7 days in seconds
+        maxReportDelay = 21 days; // 21 days in seconds
         debtThreshold = 5 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
-        profitFactor = 10_000; // in this strategy, profitFactor is only used for telling keep3rs when to move funds from vault to strategy
+        profitFactor = 1_000_000; // in this strategy, profitFactor is only used for telling keep3rs when to move funds from vault to strategy
         harvestProfitNeeded = 80_000 * 1e6; // this is how much in USDT we need to make. remember, 6 decimals!
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012; // health.ychad.eth
 
@@ -408,6 +413,11 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
             return true;
         }
 
+        // check if the base fee gas price is higher than we allow
+        if (readBaseFee() > maxGasPrice) {
+            return false;
+        }
+
         // harvest if we have a profit to claim
         if (claimableProfitInUsdt() > harvestProfitNeeded) {
             return true;
@@ -479,29 +489,29 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
         return crvValue.add(cvxValue);
     }
 
-    // convert our keeper's eth cost into want
+    // convert our keeper's eth cost into want (we set this to return the value since it doesn't give much use)
     function ethToWant(uint256 _ethAmount)
         public
         view
         override
         returns (uint256)
     {
-        uint256 callCostInWant;
-        if (_ethAmount > 0) {
-            address[] memory ethPath = new address[](2);
-            ethPath[0] = address(weth);
-            ethPath[1] = address(crv);
+        return _ethAmount;
+    }
 
-            uint256[] memory _callCostInCrvTuple =
-                IUniswapV2Router02(sushiswap).getAmountsOut(
-                    _ethAmount,
-                    ethPath
-                );
+    function readBaseFee() internal view returns (uint256 baseFee) {
+        // IBaseFee _baseFeeOracle = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549); ******* UNCOMMENT THIS AFTER TESTING *******
+        return _baseFeeOracle.basefee_global();
+    }
 
-            uint256 _callCostInCrv =
-                _callCostInCrvTuple[_callCostInCrvTuple.length - 1];
-            callCostInWant = curve.calc_token_amount([_callCostInCrv, 0], true);
-        }
-        return callCostInWant;
+    /* ========== SETTERS ========== */
+    // set the maximum gas price we want to pay for a harvest/tend in gwei
+    function setGasPrice(uint256 _maxGasPrice) external onlyAuthorized {
+        maxGasPrice = _maxGasPrice.mul(1e9);
+    }
+
+    // set the maximum gas price we want to pay for a harvest/tend in gwei, ******* REMOVE THIS AFTER TESTING *******
+    function setGasOracle(address _gasOracle) external onlyAuthorized {
+        _baseFeeOracle = IBaseFee(_gasOracle);
     }
 }
