@@ -491,3 +491,53 @@ def test_odds_and_ends_inactive_strat(
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be true.", tx)
     assert tx == True
+
+
+# this one tests if we don't have any CRV to send to voter or any left over after sending
+def test_odds_and_ends_weird_amounts(
+    gov,
+    token,
+    vault,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    strategist_ms,
+    voter,
+    amount,
+    dummy_gas_oracle,
+):
+
+    ## deposit to the vault after approving
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
+    strategy.tend({"from": gov})
+    chain.mine(1)
+    chain.sleep(361)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # sleep for an hour to get some profit
+    chain.sleep(3600)
+    chain.mine(1)
+
+    # take 100% of our CRV to the voter
+    strategy.setKeepCRV(10000, {"from": gov})
+    strategy.tend({"from": gov})
+    chain.mine(1)
+    chain.sleep(361)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # sleep for an hour to get some profit
+    chain.sleep(3600)
+    chain.mine(1)
+
+    # take 0% of our CRV to the voter
+    strategy.setKeepCRV(0, {"from": gov})
+    strategy.tend({"from": gov})
+    chain.mine(1)
+    chain.sleep(361)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)

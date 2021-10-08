@@ -58,6 +58,7 @@ def test_setters(
     strategy.setKeepCRV(10, {"from": gov})
     strategy.setClaimRewards(True, {"from": gov})
     strategy.setHarvestProfitNeeded(1e18, {"from": gov})
+    strategy.setGasPrice(100, {"from": gov})
 
     strategy.setStrategist(strategist, {"from": gov})
     name = strategy.name()
