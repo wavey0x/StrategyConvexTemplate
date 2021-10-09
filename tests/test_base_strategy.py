@@ -22,7 +22,7 @@ def test_base_strategy(
     newWhale = token.balanceOf(whale)
 
     # test our harvestTrigger for when we have a profit (don't normally need this)
-    # our whale donates dust to the vault, what a nice person!
+    # our whale donates dust to the strategy, what a nice person!
     donation = 1e16
     token.transfer(strategy, donation, {"from": whale})
 

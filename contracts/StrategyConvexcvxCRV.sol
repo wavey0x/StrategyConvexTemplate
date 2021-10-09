@@ -265,7 +265,6 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
     IERC20 public constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends
-    IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -311,7 +310,7 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
         convexTokenPath = [address(convexToken), address(weth), address(crv)];
 
         // set our baseline max gas price
-        maxGasPrice = 100 * 1e9;
+        maxGasPrice = 75 * 1e9;
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
@@ -503,8 +502,10 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
         return _ethAmount;
     }
 
+    // use this to check current base fee gas price
     function readBaseFee() internal view returns (uint256 baseFee) {
-        // IBaseFee _baseFeeOracle = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549); ******* UNCOMMENT THIS AFTER TESTING *******
+        IBaseFee _baseFeeOracle =
+            IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549);
         return _baseFeeOracle.basefee_global();
     }
 
@@ -512,10 +513,5 @@ contract StrategyConvexcvxCRV is StrategyConvexBase {
     // set the maximum gas price we want to pay for a harvest/tend in gwei
     function setGasPrice(uint256 _maxGasPrice) external onlyAuthorized {
         maxGasPrice = _maxGasPrice.mul(1e9);
-    }
-
-    // set the maximum gas price we want to pay for a harvest/tend in gwei, ******* REMOVE THIS AFTER TESTING *******
-    function setGasOracle(address _gasOracle) external onlyAuthorized {
-        _baseFeeOracle = IBaseFee(_gasOracle);
     }
 }
