@@ -40,8 +40,8 @@ def test_simple_harvest(
     # try and include custom logic here to check that funds are in the staking contract (if needed)
     assert rewardsContract.balanceOf(strategy) > stakingBeforeHarvest
 
-    # simulate 7 days of earnings
-    chain.sleep(86400 * 7)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # harvest, store new asset amount
@@ -57,7 +57,7 @@ def test_simple_harvest(
     print(
         "\nEstimated APR: ",
         "{:.2%}".format(
-            ((new_assets - old_assets) * (365 / 7)) / (strategy.estimatedTotalAssets())
+            ((new_assets - old_assets) * (365)) / (strategy.estimatedTotalAssets())
         ),
     )
 

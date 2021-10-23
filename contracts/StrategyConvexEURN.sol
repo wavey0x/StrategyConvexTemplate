@@ -320,6 +320,10 @@ contract StrategyConvexEURN is StrategyConvexBase {
         // set our strategy's name
         stratName = _name;
 
+        // these are our approvals and path specific to this contract
+        eurt.approve(address(curve), type(uint256).max);
+        weth.approve(uniswapv3, type(uint256).max);
+
         // set our max gas price
         maxGasPrice = 100 * 1e9;
     }

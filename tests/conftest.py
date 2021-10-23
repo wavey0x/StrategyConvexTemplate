@@ -198,7 +198,7 @@ def vault(pm, gov, rewards, guardian, management, token, chain):
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
 def strategy(
-    StrategyConvexalETH,
+    StrategyConvexEURN,
     strategist,
     keeper,
     vault,
@@ -213,7 +213,7 @@ def strategy(
     strategy_name,
 ):
     # parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed),
-    strategy = strategist.deploy(StrategyConvexalETH, vault, pid, pool, strategy_name)
+    strategy = strategist.deploy(StrategyConvexEURN, vault, pid, pool, strategy_name)
     strategy.setKeeper(keeper, {"from": gov})
     # set our management fee to zero so it doesn't mess with our profit checking
     vault.setManagementFee(0, {"from": gov})
