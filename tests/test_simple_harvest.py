@@ -55,7 +55,7 @@ def test_simple_harvest(
 
     # Display estimated APR
     print(
-        "\nEstimated EURt APR: ",
+        "\nEstimated APR: ",
         "{:.2%}".format(
             ((new_assets - old_assets) * (365 / 7)) / (strategy.estimatedTotalAssets())
         ),
