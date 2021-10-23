@@ -16,6 +16,10 @@ import {
     StrategyParams
 } from "@yearnvaults/contracts/BaseStrategy.sol";
 
+interface IBaseFee {
+    function basefee_global() external view returns (uint256);
+}
+
 interface IUniV3 {
     struct ExactInputParams {
         bytes path;
@@ -105,19 +109,19 @@ abstract contract StrategyConvexBase is BaseStrategy {
     // keepCRV stuff
     uint256 public keepCRV; // the percentage of CRV we re-lock for boost (in basis points)
     address public constant voter = 0xF147b8125d2ef93FB6965Db97D6746952a133934; // Yearn's veCRV voter, we send some extra CRV here
-    uint256 public constant FEE_DENOMINATOR = 10000; // this means all of our fee values are in bips
+    uint256 internal constant FEE_DENOMINATOR = 10000; // this means all of our fee values are in bips
 
     // Swap stuff
-    address public constant sushiswap =
+    address internal constant sushiswap =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // default to sushiswap, more CRV and CVX liquidity there
     address[] public crvPath; // path to sell CRV
     address[] public convexTokenPath; // path to sell CVX
 
-    IERC20 public constant crv =
+    IERC20 internal constant crv =
         IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
-    IERC20 public constant convexToken =
+    IERC20 internal constant convexToken =
         IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    IERC20 public constant weth =
+    IERC20 internal constant weth =
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // keeper stuff
@@ -209,28 +213,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
         return balanceOfWant();
     }
 
-    // Sells our harvested CRV into the selected output (ETH).
-    function _sellCrv(uint256 _crvAmount) internal {
-        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
-            _crvAmount,
-            uint256(0),
-            crvPath,
-            address(this),
-            now
-        );
-    }
-
-    // Sells our harvested CVX into the selected output (ETH).
-    function _sellConvex(uint256 _convexAmount) internal {
-        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
-            _convexAmount,
-            uint256(0),
-            convexTokenPath,
-            address(this),
-            now
-        );
-    }
-
     // in case we need to exit into the convex deposit token, this will allow us to do that
     // make sure to check claimRewards before this step if needed
     // plan to have gov sweep convex deposit tokens from strategy after this
@@ -274,11 +256,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
         harvestProfitNeeded = _harvestProfitNeeded;
     }
 
-    // This allows us to change the name of a strategy
-    function setName(string calldata _stratName) external onlyAuthorized {
-        stratName = _stratName;
-    }
-
     // This allows us to manually harvest with our keeper as needed
     function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce)
         external
@@ -288,20 +265,17 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexEURT is StrategyConvexBase {
+contract StrategyConvexalETH is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
     ICurveFi public curve; // Curve Pool, need this for buying more pool tokens
+    IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
+    uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends in gwei
 
-    // uniswap v3 variables
-    address public constant uniswapv3 =
-        0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    IERC20 public constant eurt =
-        IERC20(0xC581b735A1688071A1746c968e0798D642EDE491);
-    IERC20 public constant usdt =
+    // used to check value of pending harvest
+    IERC20 internal constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
-    IOracle public oracle = IOracle(0x0F1f5A87f99f0918e6C81F16E59F3518698221Ff); // this is only needed for strats that use uniV3 for swaps
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -313,9 +287,9 @@ contract StrategyConvexEURT is StrategyConvexBase {
     ) public StrategyConvexBase(_vault) {
         // You can set these parameters on deployment to whatever you want
         maxReportDelay = 7 days; // 7 days in seconds, if we hit this then harvestTrigger = True
-        debtThreshold = 5 * 1e18; // set a bit of a buffer
-        profitFactor = 10_000; // in this strategy, profitFactor is only used for telling keep3rs when to move funds from vault to strategy (what previously was an earn call)
-        harvestProfitNeeded = 20_000 * 1e6; // this is how much in USDT we need to make. remember, 6 decimals!
+        debtThreshold = 1 * 1e6; // we shouldn't ever have debt, but set a bit of a buffer
+        profitFactor = 1_000_000; // in this strategy, profitFactor is only used for telling keep3rs when to move funds from vault to strategy
+        harvestProfitNeeded = 80_000 * 1e6; // this is how much in USDT we need to make. remember, 6 decimals!
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012; // health.ychad.eth
 
         // want = Curve LP
@@ -341,13 +315,12 @@ contract StrategyConvexEURT is StrategyConvexBase {
         // set our strategy's name
         stratName = _name;
 
-        // strategy-specific approvals and paths
-        eurt.approve(address(curve), type(uint256).max);
-        weth.approve(uniswapv3, type(uint256).max);
-
         // set our paths
         crvPath = [address(crv), address(weth)];
         convexTokenPath = [address(convexToken), address(weth)];
+
+        // set our max gas price
+        maxGasPrice = 100 * 1e9;
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
@@ -377,23 +350,17 @@ contract StrategyConvexEURT is StrategyConvexBase {
             uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
             if (crvRemainder > 0) {
-                _sellCrv(crvRemainder);
+                _sellCrvforETH(crvRemainder);
             }
 
             if (convexBalance > 0) {
-                _sellConvex(convexBalance);
+                _sellConvexforETH(convexBalance);
             }
 
-            // convert our WETH to EURt
-            uint256 _wethBalance = weth.balanceOf(address(this));
-            uint256 _eurtBalance = 0;
-            if (_wethBalance > 0) {
-                _eurtBalance = _sellWethForEurt(_wethBalance);
-            }
-
-            // deposit our EURt to Curve if we have any
-            if (_eurtBalance > 0) {
-                curve.add_liquidity([_eurtBalance, 0], 0);
+            // deposit our ETH to the curve pool
+            uint256 ethBalance = address(this).balance;
+            if (ethBalance > 0) {
+                curve.add_liquidity{value: ethBalance}([ethBalance, 0], 0);
             }
         }
 
@@ -432,6 +399,28 @@ contract StrategyConvexEURT is StrategyConvexBase {
         forceHarvestTriggerOnce = false;
     }
 
+    // Sells our harvested CRV into the selected output (ETH).
+    function _sellCrvforETH(uint256 _crvAmount) internal {
+        IUniswapV2Router02(sushiswap).swapExactTokensForETH(
+            _crvAmount,
+            uint256(0),
+            crvPath,
+            address(this),
+            block.timestamp
+        );
+    }
+
+    // Sells our harvested CVX into the selected output (ETH).
+    function _sellConvexforETH(uint256 _convexAmount) internal {
+        IUniswapV2Router02(sushiswap).swapExactTokensForETH(
+            _convexAmount,
+            uint256(0),
+            convexTokenPath,
+            address(this),
+            block.timestamp
+        );
+    }
+
     // migrate our want token to a new strategy if needed, make sure to check claimRewards first
     // also send over any CRV or CVX that is claimed; for migrations we definitely want to claim
     function prepareMigration(address _newStrategy) internal override {
@@ -447,27 +436,6 @@ contract StrategyConvexEURT is StrategyConvexBase {
             _newStrategy,
             convexToken.balanceOf(address(this))
         );
-    }
-
-    // Sells our USDT for EURt
-    function _sellWethForEurt(uint256 _amount) internal returns (uint256) {
-        uint256 _eurtOutput =
-            IUniV3(uniswapv3).exactInput(
-                IUniV3.ExactInputParams(
-                    abi.encodePacked(
-                        address(weth),
-                        uint24(500),
-                        address(usdt),
-                        uint24(500),
-                        address(eurt)
-                    ),
-                    address(this),
-                    now,
-                    _amount,
-                    uint256(1)
-                )
-            );
-        return _eurtOutput;
     }
 
     /* ========== KEEP3RS ========== */
@@ -493,7 +461,17 @@ contract StrategyConvexEURT is StrategyConvexBase {
             return false;
         }
 
+        // check if the base fee gas price is higher than we allow
+        if (readBaseFee() > maxGasPrice) {
+            return false;
+        }
+
         return super.harvestTrigger(callCostinEth);
+    }
+
+    function readBaseFee() internal view returns (uint256 baseFee) {
+        // IBaseFee _baseFeeOracle = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549); ******* UNCOMMENT THIS AFTER TESTING *******
+        return _baseFeeOracle.basefee_global();
     }
 
     // we will need to add rewards token here if we have them
@@ -562,10 +540,23 @@ contract StrategyConvexEURT is StrategyConvexBase {
     {
         uint256 callCostInWant;
         if (_ethAmount > 0) {
-            uint256 callCostInEur =
-                oracle.ethToAsset(_ethAmount, address(eurt), 1800);
-            callCostInWant = curve.calc_token_amount([callCostInEur, 0], true);
+            callCostInWant = curve.calc_token_amount([_ethAmount, 0], true);
         }
         return callCostInWant;
+    }
+
+    // enable ability to recieve ETH
+    receive() external payable {}
+
+    /* ========== SETTERS ========== */
+
+    // set the maximum gas price we want to pay for a harvest/tend in gwei
+    function setGasPrice(uint256 _maxGasPrice) external onlyAuthorized {
+        maxGasPrice = _maxGasPrice.mul(1e9);
+    }
+
+    // set the maximum gas price we want to pay for a harvest/tend in gwei, ******* REMOVE THIS AFTER TESTING *******
+    function setGasOracle(address _gasOracle) external onlyAuthorized {
+        _baseFeeOracle = IBaseFee(_gasOracle);
     }
 }

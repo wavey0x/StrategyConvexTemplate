@@ -5,7 +5,15 @@ import math
 
 
 def test_triggers(
-    gov, token, vault, strategist, whale, strategy, chain, amount,
+    gov,
+    token,
+    vault,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    amount,
+    dummy_gas_oracle,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -21,7 +29,8 @@ def test_triggers(
     chain.sleep(86400)
     chain.mine(1)
 
-    # harvest should trigger false
+    # harvest should trigger false, hasn't been long enough
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be False.", tx)
     assert tx == False
@@ -31,6 +40,7 @@ def test_triggers(
     chain.mine(1)
 
     # harvest should trigger true
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be true.", tx)
     chain.sleep(1)
@@ -42,6 +52,7 @@ def test_triggers(
     chain.sleep(86400 * 9)
     chain.mine(1)
     strategy.setMaxReportDelay(1e18, {"from": gov})
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be true.", tx)
     assert tx == True
@@ -50,9 +61,24 @@ def test_triggers(
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale
 
+    # harvest should trigger false due to high gas price
+    dummy_gas_oracle.setDummyBaseFee(400)
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
+    tx = strategy.harvestTrigger(0, {"from": gov})
+    print("\nShould we harvest? Should be false.", tx)
+    assert tx == False
+
 
 def test_less_useful_triggers(
-    gov, token, vault, strategist, whale, strategy, chain, amount,
+    gov,
+    token,
+    vault,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    amount,
+    dummy_gas_oracle,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -65,6 +91,7 @@ def test_less_useful_triggers(
     chain.sleep(1)
 
     strategy.setMinReportDelay(100, {"from": gov})
+    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be False.", tx)
     assert tx == False
