@@ -114,8 +114,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
     // Swap stuff
     address internal constant sushiswap =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // default to sushiswap, more CRV and CVX liquidity there
-    address[] public crvPath; // path to sell CRV
-    address[] public convexTokenPath; // path to sell CVX
 
     IERC20 internal constant crv =
         IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
@@ -314,10 +312,6 @@ contract StrategyConvexalETH is StrategyConvexBase {
         // set our strategy's name
         stratName = _name;
 
-        // set our paths
-        crvPath = [address(crv), address(weth)];
-        convexTokenPath = [address(convexToken), address(weth)];
-
         // set our max gas price
         maxGasPrice = 100 * 1e9;
     }
@@ -400,6 +394,9 @@ contract StrategyConvexalETH is StrategyConvexBase {
 
     // Sells our harvested CRV into the selected output (ETH).
     function _sellCrvforETH(uint256 _crvAmount) internal {
+        address[] memory crvPath = new address[](2);
+        crvPath[0] = address(crv);
+        crvPath[1] = address(weth);
         IUniswapV2Router02(sushiswap).swapExactTokensForETH(
             _crvAmount,
             uint256(0),
@@ -411,6 +408,9 @@ contract StrategyConvexalETH is StrategyConvexBase {
 
     // Sells our harvested CVX into the selected output (ETH).
     function _sellConvexforETH(uint256 _convexAmount) internal {
+        address[] memory convexTokenPath = new address[](2);
+        convexTokenPath[0] = address(convexToken);
+        convexTokenPath[1] = address(weth);
         IUniswapV2Router02(sushiswap).swapExactTokensForETH(
             _convexAmount,
             uint256(0),
