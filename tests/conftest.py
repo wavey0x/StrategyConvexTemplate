@@ -10,29 +10,33 @@ def isolation(fn_isolation):
 # put our pool's convex pid here
 @pytest.fixture(scope="module")
 def pid():
-    pid = 49
+    pid = 50
     yield pid
 
 
 @pytest.fixture(scope="module")
-def whale(accounts):
+def whale(accounts, token):
     # Totally in it for the tech
-    # Update this with a large holder of your want token
-    whale = accounts.at("0xf6Bed2bb9aB681b0B736f347351FAca63231e84D", force=True)
+    # Update this with a large holder of your want token (EOA holding some EURT, deposit it to the LP)
+    whale = accounts.at("0x919fb7950488C1dCaFB5E6D17f003de0cEc2f1d8", force=True)
+    eurt = Contract("0xC581b735A1688071A1746c968e0798D642EDE491")
+    eurt.approve(token, 0, {"from": whale})
+    eurt.approve(token, 1000000e6, {"from": whale})
+    token.add_liquidity([0, 10000e6], 0, {"from": whale})
     yield whale
 
 
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
 def amount():
-    amount = 2e18
+    amount = 2_000e18
     yield amount
 
 
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "StrategyConvexalETH"
+    strategy_name = "StrategyConvexEURN"
     yield strategy_name
 
 

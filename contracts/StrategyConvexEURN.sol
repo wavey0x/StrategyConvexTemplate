@@ -114,7 +114,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
     // Swap stuff
     address internal constant sushiswap =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // default to sushiswap, more CRV and CVX liquidity there
-    address[] public crvPath; // path to sell CRV
     address[] public convexTokenPath; // path to sell CVX
 
     IERC20 internal constant crv =
@@ -265,7 +264,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexalETH is StrategyConvexBase {
+contract StrategyConvexEURN is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
@@ -273,9 +272,15 @@ contract StrategyConvexalETH is StrategyConvexBase {
     IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
     uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends in gwei
 
-    // used to check value of pending harvest
+    // Uniswap stuff
+    IOracle internal constant oracle =
+        IOracle(0x0F1f5A87f99f0918e6C81F16E59F3518698221Ff); // this is only needed for strats that use uniV3 for swaps
+    address internal constant uniswapv3 =
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
     IERC20 internal constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
+    IERC20 internal constant eurt =
+        IERC20(0xC581b735A1688071A1746c968e0798D642EDE491);
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -315,10 +320,6 @@ contract StrategyConvexalETH is StrategyConvexBase {
         // set our strategy's name
         stratName = _name;
 
-        // set our paths
-        crvPath = [address(crv), address(weth)];
-        convexTokenPath = [address(convexToken), address(weth)];
-
         // set our max gas price
         maxGasPrice = 100 * 1e9;
     }
@@ -350,17 +351,23 @@ contract StrategyConvexalETH is StrategyConvexBase {
             uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
             if (crvRemainder > 0) {
-                _sellCrvforETH(crvRemainder);
+                _sellCrvforWETH(crvRemainder);
             }
 
             if (convexBalance > 0) {
-                _sellConvexforETH(convexBalance);
+                _sellConvexforWETH(convexBalance);
             }
 
-            // deposit our ETH to the curve pool
-            uint256 ethBalance = address(this).balance;
-            if (ethBalance > 0) {
-                curve.add_liquidity{value: ethBalance}([ethBalance, 0], 0);
+            // convert our WETH to EURt, but don't want to swap dust
+            uint256 _wethBalance = weth.balanceOf(address(this));
+            uint256 _eurtBalance = 0;
+            if (_wethBalance > 0) {
+                _eurtBalance = _sellWethForEurt(_wethBalance);
+            }
+
+            // deposit our EURt to Curve if we have any
+            if (_eurtBalance > 0) {
+                curve.add_liquidity([0, _eurtBalance], 0);
             }
         }
 
@@ -399,10 +406,13 @@ contract StrategyConvexalETH is StrategyConvexBase {
         forceHarvestTriggerOnce = false;
     }
 
-    // Sells our harvested CRV into the selected output (ETH).
-    function _sellCrvforETH(uint256 _crvAmount) internal {
-        IUniswapV2Router02(sushiswap).swapExactTokensForETH(
-            _crvAmount,
+    // Sells our harvested CRV into the selected output.
+    function _sellCrvforWETH(uint256 _amount) internal {
+        address[] memory crvPath = new address[](2);
+        crvPath[0] = address(crv);
+        crvPath[1] = address(weth);
+        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
+            _amount,
             uint256(0),
             crvPath,
             address(this),
@@ -410,15 +420,39 @@ contract StrategyConvexalETH is StrategyConvexBase {
         );
     }
 
-    // Sells our harvested CVX into the selected output (ETH).
-    function _sellConvexforETH(uint256 _convexAmount) internal {
-        IUniswapV2Router02(sushiswap).swapExactTokensForETH(
-            _convexAmount,
+    // Sells our harvested CVX into the selected output.
+    function _sellConvexforWETH(uint256 _amount) internal {
+        address[] memory convexTokenPath = new address[](2);
+        convexTokenPath[0] = address(convexToken);
+        convexTokenPath[1] = address(weth);
+        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
+            _amount,
             uint256(0),
             convexTokenPath,
             address(this),
             block.timestamp
         );
+    }
+
+    // Sells our WETH for EURt
+    function _sellWethForEurt(uint256 _amount) internal returns (uint256) {
+        uint256 _eurtOutput =
+            IUniV3(uniswapv3).exactInput(
+                IUniV3.ExactInputParams(
+                    abi.encodePacked(
+                        address(weth),
+                        uint24(500),
+                        address(usdt),
+                        uint24(500),
+                        address(eurt)
+                    ),
+                    address(this),
+                    block.timestamp,
+                    _amount,
+                    uint256(1)
+                )
+            );
+        return _eurtOutput;
     }
 
     // migrate our want token to a new strategy if needed, make sure to check claimRewards first
@@ -540,13 +574,12 @@ contract StrategyConvexalETH is StrategyConvexBase {
     {
         uint256 callCostInWant;
         if (_ethAmount > 0) {
-            callCostInWant = curve.calc_token_amount([_ethAmount, 0], true);
+            uint256 callCostInEur =
+                oracle.ethToAsset(_ethAmount, address(eurt), 1800);
+            callCostInWant = curve.calc_token_amount([0, callCostInEur], true);
         }
         return callCostInWant;
     }
-
-    // enable ability to recieve ETH
-    receive() external payable {}
 
     /* ========== SETTERS ========== */
 
