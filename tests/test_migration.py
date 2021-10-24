@@ -5,7 +5,7 @@ import math
 
 
 def test_migration(
-    StrategyConvexEURN,
+    StrategyConvexMIMUST,
     gov,
     token,
     vault,
@@ -33,7 +33,7 @@ def test_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvexEURN, vault, pid, pool, strategy_name
+        StrategyConvexMIMUST, vault, pid, pool, strategy_name
     )
     total_old = strategy.estimatedTotalAssets()
 

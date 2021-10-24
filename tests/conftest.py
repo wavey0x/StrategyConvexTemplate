@@ -10,19 +10,15 @@ def isolation(fn_isolation):
 # put our pool's convex pid here
 @pytest.fixture(scope="module")
 def pid():
-    pid = 50
+    pid = 52
     yield pid
 
 
 @pytest.fixture(scope="module")
 def whale(accounts, token):
     # Totally in it for the tech
-    # Update this with a large holder of your want token (EOA holding some EURT, deposit it to the LP)
-    whale = accounts.at("0x919fb7950488C1dCaFB5E6D17f003de0cEc2f1d8", force=True)
-    eurt = Contract("0xC581b735A1688071A1746c968e0798D642EDE491")
-    eurt.approve(token, 0, {"from": whale})
-    eurt.approve(token, 1000000e6, {"from": whale})
-    token.add_liquidity([0, 10000e6], 0, {"from": whale})
+    # Update this with a large holder of your want token (Daniele's EOA holding this LP)
+    whale = accounts.at("0xCba1A275e2D858EcffaF7a87F606f74B719a8A93", force=True)
     yield whale
 
 
@@ -36,7 +32,7 @@ def amount():
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "StrategyConvexEURN"
+    strategy_name = "StrategyConvexMIMUST"
     yield strategy_name
 
 
@@ -198,7 +194,7 @@ def vault(pm, gov, rewards, guardian, management, token, chain):
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
 def strategy(
-    StrategyConvexEURN,
+    StrategyConvexMIMUST,
     strategist,
     keeper,
     vault,
@@ -213,7 +209,7 @@ def strategy(
     strategy_name,
 ):
     # parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed),
-    strategy = strategist.deploy(StrategyConvexEURN, vault, pid, pool, strategy_name)
+    strategy = strategist.deploy(StrategyConvexMIMUST, vault, pid, pool, strategy_name)
     strategy.setKeeper(keeper, {"from": gov})
     # set our management fee to zero so it doesn't mess with our profit checking
     vault.setManagementFee(0, {"from": gov})

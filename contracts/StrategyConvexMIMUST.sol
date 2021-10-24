@@ -264,7 +264,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexEURN is StrategyConvexBase {
+contract StrategyConvexMIMUST is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
@@ -277,10 +277,12 @@ contract StrategyConvexEURN is StrategyConvexBase {
         IOracle(0x0F1f5A87f99f0918e6C81F16E59F3518698221Ff); // this is only needed for strats that use uniV3 for swaps
     address internal constant uniswapv3 =
         0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    IERC20 internal constant usdt =
+    IERC20 internal constant usdt = // need this for our expected harvest amount
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
-    IERC20 internal constant eurt =
-        IERC20(0xC581b735A1688071A1746c968e0798D642EDE491);
+    IERC20 internal constant usdc =
+        IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    IERC20 internal constant ust =
+        IERC20(0xa47c8bf37f92aBed4A126BDA807A7b7498661acD);
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -321,7 +323,7 @@ contract StrategyConvexEURN is StrategyConvexBase {
         stratName = _name;
 
         // these are our approvals and path specific to this contract
-        eurt.approve(address(curve), type(uint256).max);
+        ust.approve(address(curve), type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
 
         // set our max gas price
@@ -364,14 +366,14 @@ contract StrategyConvexEURN is StrategyConvexBase {
 
             // convert our WETH to EURt, but don't want to swap dust
             uint256 _wethBalance = weth.balanceOf(address(this));
-            uint256 _eurtBalance = 0;
+            uint256 _ustBalance = 0;
             if (_wethBalance > 0) {
-                _eurtBalance = _sellWethForEurt(_wethBalance);
+                _ustBalance = _sellWethForUST(_wethBalance);
             }
 
             // deposit our EURt to Curve if we have any
-            if (_eurtBalance > 0) {
-                curve.add_liquidity([0, _eurtBalance], 0);
+            if (_ustBalance > 0) {
+                curve.add_liquidity([0, _ustBalance], 0);
             }
         }
 
@@ -438,17 +440,17 @@ contract StrategyConvexEURN is StrategyConvexBase {
         );
     }
 
-    // Sells our WETH for EURt
-    function _sellWethForEurt(uint256 _amount) internal returns (uint256) {
+    // Sells our WETH for UST
+    function _sellWethForUST(uint256 _amount) internal returns (uint256) {
         uint256 _eurtOutput =
             IUniV3(uniswapv3).exactInput(
                 IUniV3.ExactInputParams(
                     abi.encodePacked(
                         address(weth),
                         uint24(500),
-                        address(usdt),
+                        address(usdc),
                         uint24(500),
-                        address(eurt)
+                        address(ust)
                     ),
                     address(this),
                     block.timestamp,
@@ -578,9 +580,9 @@ contract StrategyConvexEURN is StrategyConvexBase {
     {
         uint256 callCostInWant;
         if (_ethAmount > 0) {
-            uint256 callCostInEur =
-                oracle.ethToAsset(_ethAmount, address(eurt), 1800);
-            callCostInWant = curve.calc_token_amount([0, callCostInEur], true);
+            uint256 callCostInUst =
+                oracle.ethToAsset(_ethAmount, address(ust), 1800);
+            callCostInWant = curve.calc_token_amount([0, callCostInUst], true);
         }
         return callCostInWant;
     }
