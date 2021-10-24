@@ -269,7 +269,6 @@ contract StrategyConvexMIMUST is StrategyConvexBase {
     // these will likely change across different wants.
 
     ICurveFi public curve; // Curve Pool, need this for buying more pool tokens
-    IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
     uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends in gwei
 
     // Uniswap stuff
@@ -510,7 +509,8 @@ contract StrategyConvexMIMUST is StrategyConvexBase {
     }
 
     function readBaseFee() internal view returns (uint256 baseFee) {
-        // IBaseFee _baseFeeOracle = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549); ******* UNCOMMENT THIS AFTER TESTING *******
+        IBaseFee _baseFeeOracle =
+            IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549);
         return _baseFeeOracle.basefee_global();
     }
 
@@ -592,10 +592,5 @@ contract StrategyConvexMIMUST is StrategyConvexBase {
     // set the maximum gas price we want to pay for a harvest/tend in gwei
     function setGasPrice(uint256 _maxGasPrice) external onlyAuthorized {
         maxGasPrice = _maxGasPrice.mul(1e9);
-    }
-
-    // set the maximum gas price we want to pay for a harvest/tend in gwei, ******* REMOVE THIS AFTER TESTING *******
-    function setGasOracle(address _gasOracle) external onlyAuthorized {
-        _baseFeeOracle = IBaseFee(_gasOracle);
     }
 }
