@@ -262,7 +262,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
+contract StrategyConvexEURTUSD is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
