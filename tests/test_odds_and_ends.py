@@ -15,7 +15,7 @@ def test_odds_and_ends(
     strategist_ms,
     voter,
     gauge,
-    StrategyConvex3CrvRewardsClonable,
+    StrategyConvexIronBank,
     cvxDeposit,
     rewardsContract,
     pid,
@@ -54,6 +54,10 @@ def test_odds_and_ends(
     # print("\nShould we harvest? Should be true.", tx)
     # assert tx == True
 
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     chain.sleep(86400 * 2)
     chain.mine(1)
     strategy.setDoHealthCheck(False, {"from": gov})
@@ -66,10 +70,9 @@ def test_odds_and_ends(
     # we can try to migrate too, lol
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvex3CrvRewardsClonable,
+        StrategyConvexIronBank,
         vault,
         pid,
-        pool,
         strategy_name,
     )
     total_old = strategy.estimatedTotalAssets()
@@ -98,11 +101,6 @@ def test_odds_and_ends(
     vaultAssets_2 = vault.totalAssets()
     assert vaultAssets_2 >= startingVault
     print("\nAssets after 1 day harvest: ", vaultAssets_2)
-
-    # check our oracle
-    one_eth_in_want = strategy.ethToWant(1000000000000000000)
-    print("This is how much want one ETH buys:", one_eth_in_want)
-    zero_eth_in_want = strategy.ethToWant(0)
 
     # check our views
     strategy.apiVersion()
@@ -146,6 +144,10 @@ def test_odds_and_ends_2(
     cvxDeposit.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     strategy.setEmergencyExit({"from": gov})
 
     chain.sleep(1)
@@ -158,7 +160,7 @@ def test_odds_and_ends_2(
 
 
 def test_odds_and_ends_migration(
-    StrategyConvex3CrvRewardsClonable,
+    StrategyConvexIronBank,
     gov,
     token,
     vault,
@@ -184,10 +186,9 @@ def test_odds_and_ends_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvex3CrvRewardsClonable,
+        StrategyConvexIronBank,
         vault,
         pid,
-        pool,
         strategy_name,
     )
     total_old = strategy.estimatedTotalAssets()
@@ -348,6 +349,10 @@ def test_odds_and_ends_rekt(
     assert strategy.estimatedTotalAssets() == 0
 
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
+
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
 
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
@@ -532,165 +537,6 @@ def test_odds_and_ends_weird_amounts(
     # sleep for a week to get some profit
     chain.sleep(86400 * 7)
     chain.mine(1)
-
-    # take 0% of our CRV to the voter
-    strategy.setKeepCRV(0, {"from": gov})
-    strategy.harvest({"from": gov})
-
-
-# this one tests if we don't have any CRV to send to voter or any left over after sending
-def test_odds_and_ends_rewards_stuff(
-    gov,
-    token,
-    vault,
-    strategist,
-    whale,
-    strategy,
-    chain,
-    strategist_ms,
-    voter,
-    amount,
-    rewards_token,
-    rewards,
-    keeper,
-    pool,
-    gauge,
-    strategy_name,
-):
-
-    ## deposit to the vault after approving
-    token.approve(vault, 2 ** 256 - 1, {"from": whale})
-    vault.deposit(amount, {"from": whale})
-    strategy.harvest({"from": gov})
-
-    # we do this twice to hit both branches of the if statement
-    strategy.turnOffRewards({"from": gov})
-    strategy.turnOffRewards({"from": gov})
-
-    # set our optimal to DAI without rewards on
-    strategy.setOptimal(0, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDC without rewards on
-    strategy.setOptimal(1, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDT without rewards on
-    strategy.setOptimal(2, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # we do this twice to hit both branches of the if statement
-    strategy.updateRewards(rewards_token, {"from": gov})
-    strategy.updateRewards(rewards_token, {"from": gov})
-
-    # have our whale send some "rewards" to our strat, turn off health check for this harvest
-    balance = rewards_token.balanceOf(whale)
-    rewards_token.transfer(strategy, balance, {"from": whale})
-    strategy.setDoHealthCheck(False, {"from": gov})
-
-    # set our optimal to DAI with rewards on
-    strategy.setOptimal(0, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDC with rewards on
-    strategy.setOptimal(1, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDT with rewards on
-    strategy.setOptimal(2, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # take 100% of our CRV to the voter
-    strategy.setKeepCRV(10000, {"from": gov})
-    strategy.harvest({"from": gov})
-
-    # we do this twice to hit both branches of the if statement
-    strategy.turnOffRewards({"from": gov})
-    strategy.turnOffRewards({"from": gov})
-
-    # set our optimal to DAI without rewards on
-    strategy.setOptimal(0, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDC without rewards on
-    strategy.setOptimal(1, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDT without rewards on
-    strategy.setOptimal(2, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # we do this twice to hit both branches of the if statement
-    strategy.updateRewards(rewards_token, {"from": gov})
-    strategy.updateRewards(rewards_token, {"from": gov})
-
-    # set our optimal to DAI with rewards on
-    strategy.setOptimal(0, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDC with rewards on
-    strategy.setOptimal(1, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # set our optimal to USDT with rewards on
-    strategy.setOptimal(2, {"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # sleep for a day to get some profit
-    chain.sleep(86400)
-    chain.mine(1)
-
-    # can't set to 4
-    with brownie.reverts():
-        strategy.setOptimal(4, {"from": gov})
 
     # take 0% of our CRV to the voter
     strategy.setKeepCRV(0, {"from": gov})

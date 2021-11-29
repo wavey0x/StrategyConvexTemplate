@@ -123,6 +123,11 @@ def test_emergency_exit_with_no_gain_or_loss(
     # set emergency and exit, then confirm that the strategy has no funds
     strategy.setEmergencyExit({"from": gov})
     strategy.setDoHealthCheck(False, {"from": gov})
+
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
@@ -170,6 +175,11 @@ def test_emergency_withdraw_method_0(
     strategy.withdrawToConvexDepositTokens({"from": gov})
     # turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
+
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
@@ -215,6 +225,11 @@ def test_emergency_withdraw_method_1(
     strategy.withdrawToConvexDepositTokens({"from": gov})
     # turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
+
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     chain.sleep(1)
     strategy.harvest({"from": gov})
     assert strategy.estimatedTotalAssets() == 0

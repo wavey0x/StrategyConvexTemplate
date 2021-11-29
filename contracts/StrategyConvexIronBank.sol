@@ -105,7 +105,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
     address internal constant depositContract =
         0xF403C135812408BFbE8713b5A23a04b3D48AAE31; // this is the deposit contract that all pools use, aka booster
     IConvexRewards public rewardsContract; // This is unique to each curve pool
-    address public virtualRewardsPool; // This is only if we have bonus rewards
     uint256 public pid; // this is unique to each pool
 
     // keepCRV stuff
@@ -201,16 +200,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
         }
     }
 
-    // fire sale, get rid of it all!
-    function liquidateAllPositions() internal override returns (uint256) {
-        uint256 _stakedBal = stakedBalance();
-        if (_stakedBal > 0) {
-            // don't bother withdrawing zero
-            rewardsContract.withdrawAndUnwrap(_stakedBal, claimRewards);
-        }
-        return balanceOfWant();
-    }
-
     // in case we need to exit into the convex deposit token, this will allow us to do that
     // make sure to check claimRewards before this step if needed
     // plan to have gov sweep convex deposit tokens from strategy after this
@@ -262,14 +251,13 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
+contract StrategyConvexIronBank is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
     // Curve stuff
-    address public curve; // Curve Pool, this is our pool specific to this vault
-    ICurveFi internal constant zapContract =
-        ICurveFi(0xA79828DF1850E8a3A3064576f380D90aECDD3359); // this is used for depositing to all 3Crv metapools
+    ICurveFi public curve =
+        ICurveFi(0x2dded6Da1BF5DBdF597C45fcFaa3194e53EcfeAF); // Curve Pool, this is our pool specific to this vault
 
     bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
 
@@ -286,101 +274,18 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
     uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
     uint24 public uniStableFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
 
-    // rewards token info. we can have more than 1 reward token but this is rare, so we don't include this in the template
-    IERC20 public rewardsToken;
-    bool public hasRewards;
-    address[] internal rewardsPath;
-
-    // check for cloning
-    bool internal isOriginal = true;
-
     /* ========== CONSTRUCTOR ========== */
 
     constructor(
         address _vault,
         uint256 _pid,
-        address _curvePool,
         string memory _name
     ) public StrategyConvexBase(_vault) {
-        _initializeStrat(_pid, _curvePool, _name);
-    }
-
-    /* ========== CLONING ========== */
-
-    event Cloned(address indexed clone);
-
-    // we use this to clone our original strategy to other vaults
-    function cloneConvex3CrvRewards(
-        address _vault,
-        address _strategist,
-        address _rewardsToken,
-        address _keeper,
-        uint256 _pid,
-        address _curvePool,
-        string memory _name
-    ) external returns (address newStrategy) {
-        require(isOriginal);
-        // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
-        bytes20 addressBytes = bytes20(address(this));
-        assembly {
-            // EIP-1167 bytecode
-            let clone_code := mload(0x40)
-            mstore(
-                clone_code,
-                0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
-            )
-            mstore(add(clone_code, 0x14), addressBytes)
-            mstore(
-                add(clone_code, 0x28),
-                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
-            )
-            newStrategy := create(0, clone_code, 0x37)
-        }
-
-        StrategyConvex3CrvRewardsClonable(newStrategy).initialize(
-            _vault,
-            _strategist,
-            _rewardsToken,
-            _keeper,
-            _pid,
-            _curvePool,
-            _name
-        );
-
-        emit Cloned(newStrategy);
-    }
-
-    // this will only be called by the clone function above
-    function initialize(
-        address _vault,
-        address _strategist,
-        address _rewards,
-        address _keeper,
-        uint256 _pid,
-        address _curvePool,
-        string memory _name
-    ) public {
-        _initialize(_vault, _strategist, _rewards, _keeper);
-        _initializeStrat(_pid, _curvePool, _name);
-    }
-
-    // this is called by our original strategy, as well as any clones
-    function _initializeStrat(
-        uint256 _pid,
-        address _curvePool,
-        string memory _name
-    ) internal {
-        // make sure that we haven't initialized this before
-        require(address(curve) == address(0)); // already initialized.
-
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
         crv.approve(uniswapv3, type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
-
-        // this is the pool specific to this vault, but we only use it as an address
-        curve = address(_curvePool);
 
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
@@ -393,36 +298,13 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
         // check that our LP token based on our pid matches our want
         require(address(lptoken) == address(want));
 
-        if (rewardsContract.extraRewardsLength() > 0) {
-            virtualRewardsPool = rewardsContract.extraRewards(0);
-
-            // check that if we have multiple rewards, the first one isn't CVX
-            if (
-                IConvexRewards(virtualRewardsPool).rewardToken() ==
-                address(convexToken) &&
-                rewardsContract.extraRewardsLength() > 1
-            ) {
-                virtualRewardsPool = rewardsContract.extraRewards(1);
-            }
-            rewardsToken = IERC20(
-                IConvexRewards(virtualRewardsPool).rewardToken()
-            );
-
-            // we only need to approve the new token and turn on rewards if the extra rewards isn't CVX
-            if (address(rewardsToken) != address(convexToken)) {
-                rewardsToken.approve(sushiswap, type(uint256).max);
-                rewardsPath = [address(rewardsToken), address(weth)];
-                hasRewards = true;
-            }
-        }
-
         // set our strategy's name
         stratName = _name;
 
         // these are our approvals and path specific to this contract
-        dai.approve(address(zapContract), type(uint256).max);
-        usdt.safeApprove(address(zapContract), type(uint256).max); // USDT requires safeApprove(), funky token
-        usdc.approve(address(zapContract), type(uint256).max);
+        dai.approve(address(curve), type(uint256).max);
+        usdt.safeApprove(address(curve), type(uint256).max); // USDT requires safeApprove(), funky token
+        usdc.approve(address(curve), type(uint256).max);
 
         // start with dai
         targetStable = address(dai);
@@ -456,15 +338,6 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
         }
         uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
-        // claim and sell our rewards if we have them
-        if (hasRewards) {
-            uint256 _rewardsBalance =
-                IERC20(rewardsToken).balanceOf(address(this));
-            if (_rewardsBalance > 0) {
-                _sellRewards(_rewardsBalance);
-            }
-        }
-
         if (crvRemainder > 0 || convexBalance > 0) {
             _sellCrvAndCvx(crvRemainder, convexBalance);
         }
@@ -476,10 +349,10 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
 
         // deposit our balance to Curve if we have any
         if (_daiBalance > 0 || _usdcBalance > 0 || _usdtBalance > 0) {
-            zapContract.add_liquidity(
-                curve,
-                [0, _daiBalance, _usdcBalance, _usdtBalance],
-                0
+            curve.add_liquidity(
+                [_daiBalance, _usdcBalance, _usdtBalance],
+                0,
+                true
             );
         }
 
@@ -506,7 +379,7 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
             uint256 _wantBal = balanceOfWant();
             if (_profit.add(_debtPayment) > _wantBal) {
                 // this should only be hit following donations to strategy
-                liquidateAllPositions();
+                liquidatePosition(assets);
             }
         }
         // if assets are less than debt, we are in trouble
@@ -572,17 +445,6 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
                 _wethBalance,
                 uint256(1)
             )
-        );
-    }
-
-    // Sells our harvested reward token into the selected output.
-    function _sellRewards(uint256 _amount) internal {
-        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
-            _amount,
-            uint256(0),
-            rewardsPath,
-            address(this),
-            block.timestamp
         );
     }
 
@@ -678,33 +540,7 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
             cvxValue = cvxSwap[cvxSwap.length - 1];
         }
 
-        uint256 rewardsValue;
-        if (hasRewards) {
-            usd_path[0] = address(rewardsToken);
-
-            uint256 _claimableBonusBal =
-                IConvexRewards(virtualRewardsPool).earned(address(this));
-            if (_claimableBonusBal > 0) {
-                uint256[] memory rewardSwap =
-                    IUniswapV2Router02(sushiswap).getAmountsOut(
-                        _claimableBonusBal,
-                        usd_path
-                    );
-                rewardsValue = rewardSwap[rewardSwap.length - 1];
-            }
-        }
-
-        return crvValue.add(cvxValue).add(rewardsValue);
-    }
-
-    // convert our keeper's eth cost into want, we don't need this anymore since we don't use baseStrategy harvestTrigger
-    function ethToWant(uint256 _ethAmount)
-        public
-        view
-        override
-        returns (uint256)
-    {
-        return _ethAmount;
+        return crvValue.add(cvxValue);
     }
 
     // check if the current baseFee is below our external target
@@ -720,13 +556,6 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
         uint256 crvExpiry = rewardsContract.periodFinish();
         if (crvExpiry < block.timestamp) {
             return true;
-        } else {
-            // check if there is any bonus reward we need to earmark
-            uint256 rewardsExpiry =
-                IConvexRewards(virtualRewardsPool).periodFinish();
-            if (rewardsExpiry < block.timestamp) {
-                return true;
-            }
         }
     }
 
@@ -746,31 +575,6 @@ contract StrategyConvex3CrvRewardsClonable is StrategyConvexBase {
         } else {
             revert("incorrect token");
         }
-    }
-
-    // Use to add or update rewards
-    function updateRewards(address _rewardsToken) external onlyGovernance {
-        // reset allowance to zero for our previous token if we had one
-        if (
-            address(rewardsToken) != address(0) &&
-            address(rewardsToken) != address(convexToken)
-        ) {
-            rewardsToken.approve(sushiswap, uint256(0));
-        }
-        // update with our new token, use dai as default to swap into
-        rewardsToken = IERC20(_rewardsToken);
-        rewardsToken.approve(sushiswap, type(uint256).max);
-        rewardsPath = [address(rewardsToken), address(weth)];
-        hasRewards = true;
-    }
-
-    // Use to turn off extra rewards claiming and selling. set our allowance to zero on the router and set address to zero address.
-    function turnOffRewards() external onlyGovernance {
-        hasRewards = false;
-        if (address(rewardsToken) != address(0)) {
-            rewardsToken.approve(sushiswap, uint256(0));
-        }
-        rewardsToken = IERC20(address(0));
     }
 
     // determine whether we will check if our convex rewards need to be earmarked
