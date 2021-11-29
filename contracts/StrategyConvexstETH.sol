@@ -14,7 +14,11 @@ import {IUniswapV2Router02} from "./interfaces/uniswap.sol";
 import {BaseStrategy} from "@yearnvaults/contracts/BaseStrategy.sol";
 
 interface IBaseFee {
-    function basefee_global() external view returns (uint256);
+    function isCurrentBaseFeeAcceptable() external view returns (bool);
+}
+
+interface IWeth {
+    function withdraw(uint256 wad) external;
 }
 
 interface IUniV3 {
@@ -30,6 +34,10 @@ interface IUniV3 {
         external
         payable
         returns (uint256 amountOut);
+
+    function unwrapWETH9(uint256 amountMinimum, address recipient)
+        external
+        payable;
 }
 
 interface IConvexRewards {
@@ -105,6 +113,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
     address public constant depositContract =
         0xF403C135812408BFbE8713b5A23a04b3D48AAE31; // this is the deposit contract that all pools use, aka booster
     IConvexRewards public rewardsContract; // This is unique to each curve pool
+    address public virtualRewardsPool; // This is only if we have bonus rewards
     uint256 public pid; // this is unique to each pool
 
     // keepCRV stuff
@@ -200,16 +209,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
         }
     }
 
-    // fire sale, get rid of it all!
-    function liquidateAllPositions() internal override returns (uint256) {
-        uint256 _stakedBal = stakedBalance();
-        if (_stakedBal > 0) {
-            // don't bother withdrawing zero
-            rewardsContract.withdrawAndUnwrap(_stakedBal, claimRewards);
-        }
-        return balanceOfWant();
-    }
-
     // in case we need to exit into the convex deposit token, this will allow us to do that
     // make sure to check claimRewards before this step if needed
     // plan to have gov sweep convex deposit tokens from strategy after this
@@ -261,27 +260,26 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexEURSUSDC is StrategyConvexBase {
+contract StrategyConvexstETH is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
     // Curve stuff
     ICurveFi public constant curve =
-        ICurveFi(0x98a7F18d4E56Cfe84E3D081B40001B3d5bD3eB8B); // This is our pool specific to this vault.
-    uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends in gwei
+        ICurveFi(0xDC24316b9AE028F1497c275EB9192a3Ea0f67022); // This is our pool specific to this vault.
     bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
 
     // we use these to deposit to our curve pool
-    uint256 public optimal; // this is the optimal token to deposit back to our curve pool. 0 USDC, 1 EURS
     IERC20 internal constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address internal constant uniswapv3 =
         address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
-    IERC20 internal constant eurs =
-        IERC20(0xdB25f211AB05b1c97D595516F45794528a807ad8);
     uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
-    uint24 public uniUsdcFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
-    uint24 public uniEursFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
+
+    // rewards token info
+    IERC20 public rewardsToken;
+    bool public hasRewards;
+    address[] internal rewardsPath;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -294,14 +292,11 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
         crv.approve(uniswapv3, type(uint256).max);
-        weth.approve(uniswapv3, type(uint256).max);
 
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
-        address lptoken;
-        address _rewardsContract;
-        (lptoken, , , _rewardsContract, , ) = IConvexDeposit(depositContract)
-            .poolInfo(_pid);
+        (address lptoken, , , address _rewardsContract, , ) =
+            IConvexDeposit(depositContract).poolInfo(_pid);
 
         // set up our rewardsContract
         rewardsContract = IConvexRewards(_rewardsContract);
@@ -309,14 +304,34 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
         // check that our LP token based on our pid matches our want
         require(address(lptoken) == address(want));
 
-        // these are our approvals and path specific to this contract
-        usdc.approve(address(curve), type(uint256).max);
-        eurs.approve(address(curve), type(uint256).max);
+        if (rewardsContract.extraRewardsLength() > 0) {
+            virtualRewardsPool = rewardsContract.extraRewards(0);
+
+            // check that if we have multiple rewards, the first one isn't CVX
+            if (
+                IConvexRewards(virtualRewardsPool).rewardToken() ==
+                address(convexToken) &&
+                rewardsContract.extraRewardsLength() > 1
+            ) {
+                virtualRewardsPool = rewardsContract.extraRewards(1);
+            }
+            rewardsToken = IERC20(
+                IConvexRewards(virtualRewardsPool).rewardToken()
+            );
+
+            // we only need to approve the new token and turn on rewards if the extra rewards isn't CVX
+            if (address(rewardsToken) != address(convexToken)) {
+                rewardsToken.approve(sushiswap, type(uint256).max);
+                rewardsPath = [address(rewardsToken), address(weth)];
+                hasRewards = true;
+            }
+        }
+
+        // set our strategy's name
+        stratName = _name;
 
         // set our uniswap pool fees
         uniCrvFee = 10000;
-        uniUsdcFee = 500;
-        uniEursFee = 500;
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
@@ -343,21 +358,22 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
         }
         uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
-        if (crvRemainder > 0 || convexBalance > 0) {
-            _sellCrvAndCvx(crvRemainder, convexBalance);
+        // claim and sell our rewards if we have them
+        if (hasRewards) {
+            uint256 _rewardsBalance =
+                IERC20(rewardsToken).balanceOf(address(this));
+            if (_rewardsBalance > 0) {
+                _sellRewards(_rewardsBalance);
+            }
         }
 
-        // deposit our balance to Curve if we have any
-        if (optimal == 0) {
-            uint256 usdcBalance = usdc.balanceOf(address(this));
-            if (usdcBalance > 0) {
-                curve.add_liquidity([usdcBalance, 0], 0);
-            }
-        } else {
-            uint256 eursBalance = eurs.balanceOf(address(this));
-            if (eursBalance > 0) {
-                curve.add_liquidity([0, eursBalance], 0);
-            }
+        // do this even if we have zero CVX or CRV since we use it to convert WETH to ETH
+        _sellCrvAndCvx(crvRemainder, convexBalance);
+
+        // deposit our ETH to the pool
+        uint256 ethBalance = address(this).balance;
+        if (ethBalance > 0) {
+            curve.add_liquidity{value: ethBalance}([ethBalance, 0], 0);
         }
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio
@@ -383,7 +399,7 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
             uint256 _wantBal = balanceOfWant();
             if (_profit.add(_debtPayment) > _wantBal) {
                 // this should only be hit following donations to strategy
-                liquidateAllPositions();
+                liquidatePosition(assets);
             }
         }
         // if assets are less than debt, we are in trouble
@@ -395,7 +411,7 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
         forceHarvestTriggerOnce = false;
     }
 
-    // Sells our CRV -> WETH on UniV3 and CVX -> WETH on Sushi, then WETH -> stables together on UniV3
+    // Sells our CRV -> ETH on UniV3 and CVX -> ETH on Sushi
     function _sellCrvAndCvx(uint256 _crvAmount, uint256 _convexAmount)
         internal
     {
@@ -427,40 +443,21 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
                 )
             );
         }
-        uint256 _wethBalance = weth.balanceOf(address(this));
-        if (_wethBalance > 0) {
-            if (optimal == 0) {
-                IUniV3(uniswapv3).exactInput(
-                    IUniV3.ExactInputParams(
-                        abi.encodePacked(
-                            address(weth),
-                            uint24(uniUsdcFee),
-                            address(usdc)
-                        ),
-                        address(this),
-                        block.timestamp,
-                        _wethBalance,
-                        uint256(1)
-                    )
-                );
-            } else {
-                IUniV3(uniswapv3).exactInput(
-                    IUniV3.ExactInputParams(
-                        abi.encodePacked(
-                            address(weth),
-                            uint24(uniUsdcFee),
-                            address(usdc),
-                            uint24(uniEursFee),
-                            address(eurs)
-                        ),
-                        address(this),
-                        block.timestamp,
-                        _wethBalance,
-                        uint256(1)
-                    )
-                );
-            }
+        uint256 wethBalance = weth.balanceOf(address(this));
+        if (wethBalance > 0) {
+            IWeth(address(weth)).withdraw(wethBalance);
         }
+    }
+
+    // Sells our harvested reward token into the selected output.
+    function _sellRewards(uint256 _amount) internal {
+        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
+            _amount,
+            uint256(0),
+            rewardsPath,
+            address(this),
+            block.timestamp
+        );
     }
 
     // migrate our want token to a new strategy if needed, make sure to check claimRewards first
@@ -494,12 +491,13 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
         }
 
         // harvest if we have a profit to claim at our upper limit without considering gas price
-        if (claimableProfitInUsdt() > harvestProfitMax) {
+        uint256 claimableProfit = claimableProfitInUsdt();
+        if (claimableProfit > harvestProfitMax) {
             return true;
         }
 
         // check if the base fee gas price is higher than we allow. if it is, block harvests.
-        if (readBaseFee() > maxGasPrice) {
+        if (!isBaseFeeAcceptable()) {
             return false;
         }
 
@@ -509,16 +507,12 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
         }
 
         // harvest if we have a sufficient profit to claim, but only if our gas price is acceptable
-        if (claimableProfitInUsdt() > harvestProfitMin) {
+        if (claimableProfit > harvestProfitMin) {
             return true;
         }
 
-        // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
-        if (!isActive()) {
-            return false;
-        }
-
-        return super.harvestTrigger(callCostinEth);
+        // otherwise, we don't harvest
+        return false;
     }
 
     // we will need to add rewards token here if we have them
@@ -572,36 +566,30 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
             cvxValue = cvxSwap[cvxSwap.length - 1];
         }
 
-        return crvValue.add(cvxValue);
-    }
+        uint256 rewardsValue;
+        if (hasRewards) {
+            usd_path[0] = address(rewardsToken);
 
-    // convert our keeper's eth cost into want, pretend that it's something super cheap so profitFactor isn't triggered
-    function ethToWant(uint256 _ethAmount)
-        public
-        view
-        override
-        returns (uint256)
-    {
-        return _ethAmount.mul(1e6);
-    }
-
-    // check the current baseFee
-    function readBaseFee() internal view returns (uint256) {
-        uint256 baseFee;
-        try
-            IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549)
-                .basefee_global()
-        returns (uint256 currentBaseFee) {
-            baseFee = currentBaseFee;
-        } catch {
-            // Useful for testing until ganache supports london fork
-            // Hard-code current base fee to 100 gwei
-            // This should also help keepers that run in a fork without
-            // baseFee() to avoid reverting and potentially abandoning the job
-            baseFee = 100 * 1e9;
+            uint256 _claimableBonusBal =
+                IConvexRewards(virtualRewardsPool).earned(address(this));
+            if (_claimableBonusBal > 0) {
+                uint256[] memory rewardSwap =
+                    IUniswapV2Router02(sushiswap).getAmountsOut(
+                        _claimableBonusBal,
+                        usd_path
+                    );
+                rewardsValue = rewardSwap[rewardSwap.length - 1];
+            }
         }
 
-        return baseFee;
+        return crvValue.add(cvxValue).add(rewardsValue);
+    }
+
+    // check if the current baseFee is below our external target
+    function isBaseFeeAcceptable() internal view returns (bool) {
+        return
+            IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F)
+                .isCurrentBaseFeeAcceptable();
     }
 
     // check if someone needs to earmark rewards on convex before keepers harvest again
@@ -610,27 +598,44 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
         uint256 crvExpiry = rewardsContract.periodFinish();
         if (crvExpiry < block.timestamp) {
             return true;
+        } else {
+            // check if there is any bonus reward we need to earmark
+            uint256 rewardsExpiry =
+                IConvexRewards(virtualRewardsPool).periodFinish();
+            if (rewardsExpiry < block.timestamp) {
+                return true;
+            }
         }
     }
+
+    // include so our contract plays nicely with ether
+    receive() external payable {}
 
     /* ========== SETTERS ========== */
 
-    // These functions are useful for setting parameters of the strategy that may need to be adjusted.
-    // Set optimal token to sell harvested funds for depositing to Curve.
-    // Default is USDC, but can be set to EURS as needed by strategist or governance.
-    function setOptimal(uint256 _optimal) external onlyAuthorized {
-        if (_optimal == 0) {
-            optimal = 0;
-        } else if (_optimal == 1) {
-            optimal = 1;
-        } else {
-            revert("incorrect token");
+    // Use to add or update rewards
+    function updateRewards(address _rewardsToken) external onlyGovernance {
+        // reset allowance to zero for our previous token if we had one
+        if (
+            address(rewardsToken) != address(0) &&
+            address(rewardsToken) != address(convexToken)
+        ) {
+            rewardsToken.approve(sushiswap, uint256(0));
         }
+        // update with our new token, use dai as default to swap into
+        rewardsToken = IERC20(_rewardsToken);
+        rewardsToken.approve(sushiswap, type(uint256).max);
+        rewardsPath = [address(rewardsToken), address(weth)];
+        hasRewards = true;
     }
 
-    // set the maximum gas price we want to pay for a harvest/tend in gwei
-    function setGasPrice(uint256 _maxGasPrice) external onlyAuthorized {
-        maxGasPrice = _maxGasPrice.mul(1e9);
+    // Use to turn off extra rewards claiming and selling. set our allowance to zero on the router and set address to zero address.
+    function turnOffRewards() external onlyGovernance {
+        hasRewards = false;
+        if (address(rewardsToken) != address(0)) {
+            rewardsToken.approve(sushiswap, uint256(0));
+        }
+        rewardsToken = IERC20(address(0));
     }
 
     // determine whether we will check if our convex rewards need to be earmarked
@@ -639,13 +644,7 @@ contract StrategyConvexEURSUSDC is StrategyConvexBase {
     }
 
     // set the fee pool we'd like to swap through for CRV on UniV3 (1% = 10_000)
-    function setUniFees(
-        uint24 _crvFee,
-        uint24 _usdcFee,
-        uint24 _eursFee
-    ) external onlyAuthorized {
+    function setUniFees(uint24 _crvFee) external onlyAuthorized {
         uniCrvFee = _crvFee;
-        uniUsdcFee = _usdcFee;
-        uniEursFee = _eursFee;
     }
 }

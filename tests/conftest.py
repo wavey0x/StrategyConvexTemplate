@@ -10,7 +10,7 @@ def isolation(fn_isolation):
 # put our pool's convex pid here; this is the only thing that should need to change up here **************
 @pytest.fixture(scope="module")
 def pid():
-    pid = 54
+    pid = 25
     yield pid
 
 
@@ -18,21 +18,21 @@ def pid():
 def whale(accounts):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    whale = accounts.at("0xeCb456EA5365865EbAb8a2661B0c503410e9B347", force=True)
+    whale = accounts.at("0x56c915758Ad3f76Fd287FFF7563ee313142Fb663", force=True)
     yield whale
 
 
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
 def amount():
-    amount = 1_000e18
+    amount = 100e18
     yield amount
 
 
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "StrategyConvexEURSUSDC"
+    strategy_name = "StrategyConvexstETH"
     yield strategy_name
 
 
@@ -46,7 +46,7 @@ def rewards_token():
 # this is whether our pool has extra rewards tokens or not, use this to confirm that our strategy set everything up correctly.
 @pytest.fixture(scope="module")
 def has_rewards():
-    has_rewards = False
+    has_rewards = True
     yield has_rewards
 
 
@@ -147,6 +147,11 @@ def rewardsContract(pid, booster):
     yield Contract(rewardsContract)
 
 
+@pytest.fixture(scope="module")
+def gasOracle():
+    yield Contract("0xb5e1CAcB567d98faaDB60a1fD4820720141f064F")
+
+
 # Define any accounts in this section
 # for live testing, governance is the strategist MS; we will update this before we endorse
 # normal gov is ychad, 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52
@@ -214,7 +219,7 @@ def vault(pm, gov, rewards, guardian, management, token, chain):
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
 def strategy(
-    StrategyConvexEURSUSDC,
+    StrategyConvexstETH,
     strategist,
     keeper,
     vault,
@@ -227,23 +232,24 @@ def strategy(
     pid,
     pool,
     strategy_name,
+    gasOracle,
+    strategist_ms,
 ):
     # make sure to include all constructor parameters needed here
     strategy = strategist.deploy(
-        StrategyConvexEURSUSDC,
+        StrategyConvexstETH,
         vault,
         pid,
         strategy_name,
     )
     strategy.setKeeper(keeper, {"from": gov})
-    strategy.setGasPrice(125, {"from": gov})
+    gasOracle.setMaxAcceptableBaseFee(20000000000000, {"from": strategist_ms})
     strategy.setHarvestProfitNeeded(80000e6, 180000e6, {"from": gov})
-    strategy.setMaxReportDelay(86400 * 7, {"from": gov})
     strategy.setKeepCRV(1000, {"from": gov})
     # set our management fee to zero so it doesn't mess with our profit checking
     vault.setManagementFee(0, {"from": gov})
     # add our new strategy
-    vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
+    vault.addStrategy(strategy, 10_000, 0, 1_000, {"from": gov})
     # proxy.approveStrategy(strategy.gauge(), strategy, {"from": gov}), only need this step for curve voter strats
     strategy.setHealthCheck(healthCheck, {"from": gov})
     strategy.setDoHealthCheck(True, {"from": gov})

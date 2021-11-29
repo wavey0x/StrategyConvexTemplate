@@ -108,6 +108,8 @@ def test_emergency_exit_with_no_gain_or_loss(
     chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
+    print("Vault Debt Outstanding", vault.debtOutstanding(strategy) / 1e18)
+    print("Vault Total Debt", vault.totalDebt() / 1e18)
 
     # send away all funds, will need to alter this based on strategy
     strategy.withdrawToConvexDepositTokens()
@@ -116,15 +118,19 @@ def test_emergency_exit_with_no_gain_or_loss(
     cvxDeposit.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
-    # have our whale send in exactly our debtOutstanding
-    whale_to_give = vault.debtOutstanding(strategy)
+    # have our whale send in exactly the amount we sent away
+    whale_to_give = to_send
+    print("Vault Debt Outstanding", vault.debtOutstanding(strategy) / 1e18)
+    print("Vault Total Debt", vault.totalDebt() / 1e18)
     token.transfer(strategy, whale_to_give, {"from": whale})
+    assert strategy.estimatedTotalAssets() > 0
+    print("Vault Total Assets:", vault.totalAssets() / 1e18)
 
     # set emergency and exit, then confirm that the strategy has no funds
     strategy.setEmergencyExit({"from": gov})
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.harvest({"from": gov})
+    tx = strategy.harvest({"from": gov})
     chain.sleep(1)
     assert strategy.estimatedTotalAssets() == 0
 
@@ -170,8 +176,13 @@ def test_emergency_withdraw_method_0(
     strategy.withdrawToConvexDepositTokens({"from": gov})
     # turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
+
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     chain.sleep(1)
-    strategy.harvest({"from": gov})
+    tx = strategy.harvest({"from": gov})
     chain.sleep(1)
     assert strategy.estimatedTotalAssets() == 0
     assert rewardsContract.balanceOf(strategy) == 0
@@ -212,11 +223,15 @@ def test_emergency_withdraw_method_1(
     strategy.setClaimRewards(False, {"from": gov})
     strategy.setEmergencyExit({"from": gov})
 
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     strategy.withdrawToConvexDepositTokens({"from": gov})
     # turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.harvest({"from": gov})
+    tx = strategy.harvest({"from": gov})
     assert strategy.estimatedTotalAssets() == 0
     assert rewardsContract.balanceOf(strategy) == 0
     assert cvxDeposit.balanceOf(strategy) > 0

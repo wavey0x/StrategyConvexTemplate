@@ -5,7 +5,7 @@ import math
 
 
 def test_migration(
-    StrategyConvexEURSUSDC,
+    StrategyConvexstETH,
     gov,
     token,
     vault,
@@ -32,7 +32,7 @@ def test_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvexEURSUSDC,
+        StrategyConvexstETH,
         vault,
         pid,
         strategy_name,

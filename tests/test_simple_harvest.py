@@ -17,6 +17,7 @@ def test_simple_harvest(
     voter,
     rewardsContract,
     amount,
+    accounts,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -53,44 +54,48 @@ def test_simple_harvest(
     assert new_assets >= old_assets
     print("\nAssets after 1 day: ", new_assets / 1e18)
 
+    normal_apr = ((new_assets - old_assets) * 365) / (strategy.estimatedTotalAssets())
+
     # Display estimated APR
     print(
-        "\nEstimated USDC APR: ",
+        "\nEstimated APR: ",
         "{:.2%}".format(
             ((new_assets - old_assets) * 365) / (strategy.estimatedTotalAssets())
         ),
     )
 
-    # change our optimal deposit asset
-    strategy.setOptimal(1, {"from": gov})
-
-    # store asset amount
-    before_usdc_assets = vault.totalAssets()
-    assert token.balanceOf(strategy) == 0
-
-    # try and include custom logic here to check that funds are in the staking contract (if needed)
-    assert rewardsContract.balanceOf(strategy) > 0
-
-    # simulate 1 day of earnings
+    # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
     chain.mine(1)
 
-    # harvest, store new asset amount
+    # transfer in some LDO to check that our rewards are working
+    ldo = Contract("0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32")
+    ldo_whale = accounts.at("0x008aEa5036b819B4FEAEd10b2190FBb3954981E8", force=True)
+    whale_to_give = 10000e18
+
+    # turn off health check since we're doing weird shit
+    strategy.setDoHealthCheck(False, {"from": gov})
+    ldo.transfer(strategy, whale_to_give, {"from": ldo_whale})
     chain.sleep(1)
-    strategy.harvest({"from": gov})
+    chain.mine(1)
+    assert ldo.balanceOf(strategy) > 0
+
     chain.sleep(1)
-    after_usdc_assets = vault.totalAssets()
-    # confirm we made money, or at least that we have about the same
-    assert after_usdc_assets >= before_usdc_assets
+    tx = strategy.harvest({"from": gov})
+    chain.sleep(1)
+    assert ldo.balanceOf(strategy) == 0
+    newer_assets = vault.totalAssets()
 
     # Display estimated APR
     print(
-        "\nEstimated EURS APR: ",
+        "\nEstimated New APR: ",
         "{:.2%}".format(
-            ((after_usdc_assets - before_usdc_assets) * 365)
-            / (strategy.estimatedTotalAssets())
+            ((newer_assets - new_assets) * 365) / (strategy.estimatedTotalAssets())
         ),
     )
+
+    new_apr = ((newer_assets - new_assets) * 365) / (strategy.estimatedTotalAssets())
+    assert new_apr > normal_apr
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)

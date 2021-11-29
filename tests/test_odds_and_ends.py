@@ -15,7 +15,7 @@ def test_odds_and_ends(
     strategist_ms,
     voter,
     gauge,
-    StrategyConvexEURSUSDC,
+    StrategyConvexstETH,
     cvxDeposit,
     rewardsContract,
     pid,
@@ -49,9 +49,10 @@ def test_odds_and_ends(
     assert strategy.estimatedTotalAssets() == 0
 
     # we want to check when we have a loss
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # comment this out since we no longer use harvestTrigger from baseStrategy
+    # tx = strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     chain.sleep(86400 * 2)
     chain.mine(1)
@@ -65,7 +66,7 @@ def test_odds_and_ends(
     # we can try to migrate too, lol
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvexEURSUSDC,
+        StrategyConvexstETH,
         vault,
         pid,
         strategy_name,
@@ -96,11 +97,6 @@ def test_odds_and_ends(
     vaultAssets_2 = vault.totalAssets()
     assert vaultAssets_2 >= startingVault
     print("\nAssets after 1 day harvest: ", vaultAssets_2)
-
-    # check our oracle
-    one_eth_in_want = strategy.ethToWant(1000000000000000000)
-    print("This is how much want one ETH buys:", one_eth_in_want)
-    zero_eth_in_want = strategy.ethToWant(0)
 
     # check our views
     strategy.apiVersion()
@@ -146,6 +142,10 @@ def test_odds_and_ends_2(
 
     strategy.setEmergencyExit({"from": gov})
 
+    # transfer in 1 wei of want to prevent dividing by zero in reportLoss step
+    whale_to_give = 1
+    token.transfer(strategy, whale_to_give, {"from": whale})
+
     chain.sleep(1)
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
@@ -156,7 +156,7 @@ def test_odds_and_ends_2(
 
 
 def test_odds_and_ends_migration(
-    StrategyConvexEURSUSDC,
+    StrategyConvexstETH,
     gov,
     token,
     vault,
@@ -182,7 +182,7 @@ def test_odds_and_ends_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvexEURSUSDC,
+        StrategyConvexstETH,
         vault,
         pid,
         strategy_name,
@@ -513,18 +513,6 @@ def test_odds_and_ends_weird_amounts(
     # sleep for a week to get some profit
     chain.sleep(86400 * 7)
     chain.mine(1)
-
-    # switch to USDC, want to not have any profit tho
-    strategy.setOptimal(1, {"from": gov})
-    strategy.harvest({"from": gov})
-
-    # sleep for a week to get some profit
-    chain.sleep(86400 * 7)
-    chain.mine(1)
-
-    # can't set to 4
-    with brownie.reverts():
-        strategy.setOptimal(4, {"from": gov})
 
     # take 0% of our CRV to the voter
     strategy.setKeepCRV(0, {"from": gov})

@@ -46,15 +46,12 @@ def test_setters(
     strategy.setDebtThreshold(1, {"from": gov})
     strategy.setMaxReportDelay(0, {"from": gov})
     strategy.setMaxReportDelay(1e18, {"from": gov})
-    strategy.setMetadataURI(0, {"from": gov})
-    strategy.setMinReportDelay(100, {"from": gov})
     strategy.setProfitFactor(1000, {"from": gov})
     strategy.setRewards(gov, {"from": strategist})
     strategy.setKeepCRV(10, {"from": gov})
     strategy.setClaimRewards(True, {"from": gov})
     strategy.setHarvestProfitNeeded(1e18, 100e18, {"from": gov})
-    strategy.setGasPrice(100, {"from": gov})
-    strategy.setUniFees(3000, 3000, 3000, {"from": gov})
+    strategy.setUniFees(3000, {"from": gov})
 
     strategy.setStrategist(strategist, {"from": gov})
     name = strategy.name()
@@ -102,5 +99,3 @@ def test_setters(
 
     # set emergency exit last
     strategy.setEmergencyExit({"from": gov})
-    with brownie.reverts():
-        strategy.setEmergencyExit({"from": gov})

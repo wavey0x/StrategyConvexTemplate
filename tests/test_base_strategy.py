@@ -25,9 +25,10 @@ def test_base_strategy(
     donation = 1e16
     token.transfer(strategy, donation, {"from": whale})
 
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # comment this out since we no longer use harvestTrigger from baseStrategy
+    # tx = strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     # test all of our random shit
     strategy.doHealthCheck()
@@ -40,7 +41,6 @@ def test_base_strategy(
     strategy.rewards()
     strategy.keeper()
     strategy.want()
-    strategy.minReportDelay()
     strategy.maxReportDelay()
     strategy.profitFactor()
     strategy.debtThreshold()
