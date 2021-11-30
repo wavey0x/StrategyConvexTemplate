@@ -571,7 +571,7 @@ contract StrategyConvexIronBank is StrategyConvexBase {
         } else if (_optimal == 1) {
             targetStable = address(usdc);
         } else if (_optimal == 2) {
-            targetStable = address(usdc);
+            targetStable = address(usdt);
         } else {
             revert("incorrect token");
         }
