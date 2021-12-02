@@ -15,7 +15,7 @@ def test_odds_and_ends(
     strategist_ms,
     voter,
     gauge,
-    StrategyConvexEURSUSDC,
+    StrategyConvexCRVETH,
     cvxDeposit,
     rewardsContract,
     pid,
@@ -66,7 +66,7 @@ def test_odds_and_ends(
     # we can try to migrate too, lol
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvexEURSUSDC,
+        StrategyConvexCRVETH,
         vault,
         pid,
         strategy_name,
@@ -157,7 +157,7 @@ def test_odds_and_ends_2(
 
 
 def test_odds_and_ends_migration(
-    StrategyConvexEURSUSDC,
+    StrategyConvexCRVETH,
     gov,
     token,
     vault,
@@ -183,7 +183,7 @@ def test_odds_and_ends_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyConvexEURSUSDC,
+        StrategyConvexCRVETH,
         vault,
         pid,
         strategy_name,
@@ -514,18 +514,6 @@ def test_odds_and_ends_weird_amounts(
     # sleep for a week to get some profit
     chain.sleep(86400 * 7)
     chain.mine(1)
-
-    # switch to USDC, want to not have any profit tho
-    strategy.setOptimal(1, {"from": gov})
-    strategy.harvest({"from": gov})
-
-    # sleep for a week to get some profit
-    chain.sleep(86400 * 7)
-    chain.mine(1)
-
-    # can't set to 4
-    with brownie.reverts():
-        strategy.setOptimal(4, {"from": gov})
 
     # take 0% of our CRV to the voter
     strategy.setKeepCRV(0, {"from": gov})
