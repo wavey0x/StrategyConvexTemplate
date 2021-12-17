@@ -10,7 +10,7 @@ def isolation(fn_isolation):
 # put our pool's convex pid here; this is the only thing that should need to change up here **************
 @pytest.fixture(scope="module")
 def pid():
-    pid = 58
+    pid = 60
     yield pid
 
 
@@ -18,21 +18,21 @@ def pid():
 def whale(accounts):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    whale = accounts.at("0x977bAc861722a616487EABFB9909e8f96f461166", force=True)
+    whale = accounts.at("0x14403edB6dCc966DC34e94329db4eB99BCf62d81", force=True)
     yield whale
 
 
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
 def amount():
-    amount = 3_000e18
+    amount = 30_000e18
     yield amount
 
 
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "StrategyConvexD3pool"
+    strategy_name = "StrategyConvex3EUR"
     yield strategy_name
 
 
@@ -40,7 +40,7 @@ def strategy_name():
 # this is the address of our rewards token, in this case it's a dummy (ALCX) that our whale happens to hold just used to test stuff
 @pytest.fixture(scope="module")
 def rewards_token():
-    yield Contract("0xdBdb4d16EdA451D0503b854CF79D55697F90c8DF")
+    yield Contract("0x31429d1856aD1377A8A0079410B297e1a9e214c2")
 
 
 # this is whether our pool has extra rewards tokens or not, use this to confirm that our strategy set everything up correctly.
@@ -219,7 +219,7 @@ def vault(pm, gov, rewards, guardian, management, token, chain):
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
 def strategy(
-    StrategyConvexD3pool,
+    StrategyConvex3EUR,
     strategist,
     keeper,
     vault,
@@ -237,7 +237,7 @@ def strategy(
 ):
     # make sure to include all constructor parameters needed here
     strategy = strategist.deploy(
-        StrategyConvexD3pool,
+        StrategyConvex3EUR,
         vault,
         pid,
         strategy_name,

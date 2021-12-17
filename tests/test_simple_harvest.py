@@ -55,7 +55,7 @@ def test_simple_harvest(
 
     # Display estimated APR
     print(
-        "\nEstimated FEI APR: ",
+        "\nEstimated agEUR APR: ",
         "{:.2%}".format(
             ((new_assets - old_assets) * 365) / (strategy.estimatedTotalAssets())
         ),
@@ -85,7 +85,38 @@ def test_simple_harvest(
 
     # Display estimated APR
     print(
-        "\nEstimated FRAX APR: ",
+        "\nEstimated EURT APR: ",
+        "{:.2%}".format(
+            ((after_usdc_assets - before_usdc_assets) * 365)
+            / (strategy.estimatedTotalAssets())
+        ),
+    )
+
+    # change our optimal deposit asset
+    strategy.setOptimal(1, {"from": gov})
+
+    # store asset amount
+    before_usdc_assets = vault.totalAssets()
+    assert token.balanceOf(strategy) == 0
+
+    # try and include custom logic here to check that funds are in the staking contract (if needed)
+    assert rewardsContract.balanceOf(strategy) > 0
+
+    # simulate 1 day of earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
+    # harvest, store new asset amount
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+    after_usdc_assets = vault.totalAssets()
+    # confirm we made money, or at least that we have about the same
+    assert after_usdc_assets >= before_usdc_assets
+
+    # Display estimated APR
+    print(
+        "\nEstimated EURS APR: ",
         "{:.2%}".format(
             ((after_usdc_assets - before_usdc_assets) * 365)
             / (strategy.estimatedTotalAssets())

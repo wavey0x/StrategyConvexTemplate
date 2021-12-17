@@ -105,6 +105,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
     address public constant depositContract =
         0xF403C135812408BFbE8713b5A23a04b3D48AAE31; // this is the deposit contract that all pools use, aka booster
     IConvexRewards public rewardsContract; // This is unique to each curve pool
+    address public virtualRewardsPool; // This is only if we have bonus rewards
     uint256 public pid; // this is unique to each pool
 
     // keepCRV stuff
@@ -261,28 +262,39 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexD3pool is StrategyConvexBase {
+contract StrategyConvex3EUR is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
     // Curve stuff
     ICurveFi public constant curve =
-        ICurveFi(0xBaaa1F5DbA42C3389bDbc2c9D2dE134F5cD0Dc89); // This is our pool specific to this vault.
+        ICurveFi(0xb9446c4Ef5EBE66268dA6700D26f96273DE3d571); // This is our pool specific to this vault.
     bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
 
     // we use these to deposit to our curve pool
-    uint256 internal optimal; // this is the optimal token to deposit back to our curve pool. 0 FEI, 1 FRAX
+    uint256 internal optimal = 2; // this is the optimal token to deposit back to our curve pool. 0 agEUR, 1 EURT, 2 EURS
+
+    // these are our tokens
+    IERC20 internal constant usdt =
+        IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     IERC20 internal constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    IERC20 internal constant eurt =
+        IERC20(0xC581b735A1688071A1746c968e0798D642EDE491);
+    IERC20 internal constant eurs =
+        IERC20(0xdB25f211AB05b1c97D595516F45794528a807ad8);
+    IERC20 internal constant ageur =
+        IERC20(0x1a7e4e63778B4f12a199C062f3eFdD288afCBce8);
+    IERC20 internal constant angle =
+        IERC20(0x31429d1856aD1377A8A0079410B297e1a9e214c2);
+
+    // uniswap fees and swap tokens
     address internal constant uniswapv3 =
         address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
-    address public targetStable;
-    IERC20 internal constant fei =
-        IERC20(0x956F47F50A910163D8BF957Cf5846D573E7f87CA);
-    IERC20 internal constant frax =
-        IERC20(0x853d955aCEf822Db058eb8505911ED77F175b99e);
+    address public targetStable = address(eurs);
+    address internal middleStable = address(usdc);
     uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
-    uint24 public uniUsdcFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
+    uint24 public uniWethFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
     uint24 public uniStableFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
 
     /* ========== CONSTRUCTOR ========== */
@@ -297,6 +309,7 @@ contract StrategyConvexD3pool is StrategyConvexBase {
         convexToken.approve(sushiswap, type(uint256).max);
         crv.approve(uniswapv3, type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
+        ageur.approve(uniswapv3, type(uint256).max);
 
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
@@ -309,17 +322,37 @@ contract StrategyConvexD3pool is StrategyConvexBase {
         // check that our LP token based on our pid matches our want
         require(address(lptoken) == address(want));
 
+        if (rewardsContract.extraRewardsLength() > 0) {
+            virtualRewardsPool = rewardsContract.extraRewards(0);
+
+            // check that if we have multiple rewards, the first one isn't CVX
+            if (
+                IConvexRewards(virtualRewardsPool).rewardToken() ==
+                address(convexToken) &&
+                rewardsContract.extraRewardsLength() > 1
+            ) {
+                virtualRewardsPool = rewardsContract.extraRewards(1);
+            }
+            IERC20 rewardsToken =
+                IERC20(IConvexRewards(virtualRewardsPool).rewardToken());
+
+            // we only need to approve the new token and turn on rewards if the extra rewards isn't CVX
+            if (address(rewardsToken) != address(convexToken)) {
+                rewardsToken.approve(sushiswap, type(uint256).max);
+            }
+        }
+
         // set our strategy's name
         stratName = _name;
 
         // these are our approvals and path specific to this contract
-        fei.approve(address(curve), type(uint256).max);
-        frax.approve(address(curve), type(uint256).max);
-        targetStable = address(fei);
+        eurs.approve(address(curve), type(uint256).max);
+        eurt.approve(address(curve), type(uint256).max);
+        ageur.approve(address(curve), type(uint256).max);
 
         // set our uniswap pool fees
         uniCrvFee = 10000;
-        uniUsdcFee = 500;
+        uniWethFee = 500;
         uniStableFee = 500;
     }
 
@@ -347,20 +380,31 @@ contract StrategyConvexD3pool is StrategyConvexBase {
         }
         uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
+        // claim and sell our extra rewards for WETH
+        uint256 angleBalance = angle.balanceOf(address(this));
+        if (angleBalance > 0) {
+            _sellRewards(angleBalance);
+        }
+
         if (crvRemainder > 0 || convexBalance > 0) {
             _sellCrvAndCvx(crvRemainder, convexBalance);
         }
 
         // deposit our balance to Curve if we have any
         if (optimal == 0) {
-            uint256 _feiBalance = fei.balanceOf(address(this));
-            if (_feiBalance > 0) {
-                curve.add_liquidity([0, _feiBalance, 0], 0);
+            uint256 ageurBalance = ageur.balanceOf(address(this));
+            if (ageurBalance > 0) {
+                curve.add_liquidity([ageurBalance, 0, 0], 0);
+            }
+        } else if (optimal == 1) {
+            uint256 eurtBalance = eurt.balanceOf(address(this));
+            if (eurtBalance > 0) {
+                curve.add_liquidity([0, eurtBalance, 0], 0);
             }
         } else {
-            uint256 _fraxBalance = frax.balanceOf(address(this));
-            if (_fraxBalance > 0) {
-                curve.add_liquidity([_fraxBalance, 0, 0], 0);
+            uint256 eursBalance = eurs.balanceOf(address(this));
+            if (eursBalance > 0) {
+                curve.add_liquidity([0, 0, eursBalance], 0);
             }
         }
 
@@ -397,6 +441,57 @@ contract StrategyConvexD3pool is StrategyConvexBase {
 
         // we're done harvesting, so reset our trigger if we used it
         forceHarvestTriggerOnce = false;
+    }
+
+    // Sells our harvested reward token into the selected output.
+    function _sellRewards(uint256 _amount) internal {
+        address[] memory anglePath = new address[](2);
+        anglePath[0] = address(angle);
+        anglePath[1] = address(ageur);
+
+        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
+            _amount,
+            uint256(0),
+            anglePath,
+            address(this),
+            block.timestamp
+        );
+        uint256 ageurBalance = ageur.balanceOf(address(this));
+        if (optimal == 1) {
+            IUniV3(uniswapv3).exactInput(
+                IUniV3.ExactInputParams(
+                    abi.encodePacked(
+                        address(ageur),
+                        uint24(500),
+                        address(usdc),
+                        uint24(100),
+                        address(usdt),
+                        uint24(uniStableFee),
+                        address(eurt)
+                    ),
+                    address(this),
+                    block.timestamp,
+                    ageurBalance,
+                    uint256(1)
+                )
+            );
+        } else if (optimal == 2) {
+            IUniV3(uniswapv3).exactInput(
+                IUniV3.ExactInputParams(
+                    abi.encodePacked(
+                        address(ageur),
+                        uint24(500),
+                        address(usdc),
+                        uint24(uniStableFee),
+                        address(eurs)
+                    ),
+                    address(this),
+                    block.timestamp,
+                    ageurBalance,
+                    uint256(1)
+                )
+            );
+        }
     }
 
     // Sells our CRV -> WETH on UniV3 and CVX -> WETH on Sushi, then WETH -> stables together on UniV3
@@ -437,8 +532,8 @@ contract StrategyConvexD3pool is StrategyConvexBase {
                 IUniV3.ExactInputParams(
                     abi.encodePacked(
                         address(weth),
-                        uint24(uniUsdcFee),
-                        address(usdc),
+                        uint24(uniWethFee),
+                        address(middleStable),
                         uint24(uniStableFee),
                         address(targetStable)
                     ),
@@ -534,7 +629,7 @@ contract StrategyConvexD3pool is StrategyConvexBase {
         address[] memory usd_path = new address[](3);
         usd_path[0] = address(crv);
         usd_path[1] = address(weth);
-        usd_path[2] = address(usdc);
+        usd_path[2] = address(usdt);
 
         uint256 crvValue;
         if (_claimableBal > 0) {
@@ -583,6 +678,13 @@ contract StrategyConvexD3pool is StrategyConvexBase {
         uint256 crvExpiry = rewardsContract.periodFinish();
         if (crvExpiry < block.timestamp) {
             return true;
+        } else {
+            // check if there is any bonus reward we need to earmark
+            uint256 rewardsExpiry =
+                IConvexRewards(virtualRewardsPool).periodFinish();
+            if (rewardsExpiry < block.timestamp) {
+                return true;
+            }
         }
     }
 
@@ -590,14 +692,20 @@ contract StrategyConvexD3pool is StrategyConvexBase {
 
     // These functions are useful for setting parameters of the strategy that may need to be adjusted.
     // Set optimal token to sell harvested funds for depositing to Curve.
-    // Default is FEI, but can be set to FRAX as needed by strategist or governance.
+    // Default is EURS, but can be set to EURT or agEUR as needed by strategist or governance.
     function setOptimal(uint256 _optimal) external onlyAuthorized {
         if (_optimal == 0) {
-            targetStable = address(fei);
+            targetStable = address(ageur);
+            middleStable = address(usdc);
             optimal = 0;
         } else if (_optimal == 1) {
-            targetStable = address(frax);
+            targetStable = address(eurt);
+            middleStable = address(usdt);
             optimal = 1;
+        } else if (_optimal == 2) {
+            targetStable = address(eurs);
+            middleStable = address(usdc);
+            optimal = 2;
         } else {
             revert("incorrect token");
         }
@@ -611,11 +719,11 @@ contract StrategyConvexD3pool is StrategyConvexBase {
     // set the fee pool we'd like to swap through for CRV on UniV3 (1% = 10_000)
     function setUniFees(
         uint24 _crvFee,
-        uint24 _usdcFee,
+        uint24 _wethFee,
         uint24 _stableFee
     ) external onlyAuthorized {
         uniCrvFee = _crvFee;
-        uniUsdcFee = _usdcFee;
+        uniWethFee = _wethFee;
         uniStableFee = _stableFee;
     }
 }
