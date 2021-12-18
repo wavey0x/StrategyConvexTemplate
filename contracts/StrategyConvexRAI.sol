@@ -327,6 +327,7 @@ contract StrategyConvexRAI is StrategyConvexBase {
 
         // start with usdt
         targetStable = address(usdt);
+        optimal = 2;
 
         // set our uniswap pool fees
         uniCrvFee = 10000;
