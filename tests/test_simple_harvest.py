@@ -149,7 +149,7 @@ def test_simple_harvest(
 
     # Display estimated APR
     print(
-        "\nEstimated EURT APR: ",
+        "\nEstimated RAI APR: ",
         "{:.2%}".format(
             ((after_eurt_assets - before_eurt_assets) * (365))
             / (strategy.estimatedTotalAssets())
