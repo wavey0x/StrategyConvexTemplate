@@ -276,7 +276,9 @@ contract StrategyConvexRAI is StrategyConvexBase {
     uint256 internal optimal; // this is the optimal token to deposit back to our curve pool. 0 DAI, 1 USDC, 2 USDT, 3 RAI
     address public targetStable;
     address internal constant uniswapv3 =
-        address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    ICurveFi internal constant crveth =
+        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
     IERC20 internal constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     IERC20 internal constant usdc =
@@ -299,7 +301,7 @@ contract StrategyConvexRAI is StrategyConvexBase {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
-        crv.approve(uniswapv3, type(uint256).max);
+        crv.approve(crveth, type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
 
         // set our keepCRV
@@ -330,7 +332,6 @@ contract StrategyConvexRAI is StrategyConvexBase {
         optimal = 2;
 
         // set our uniswap pool fees
-        uniCrvFee = 10000;
         uniStableFee = 500;
         uniRaiFee = 500;
     }
@@ -430,7 +431,7 @@ contract StrategyConvexRAI is StrategyConvexBase {
         }
     }
 
-    // Sells our CRV -> WETH on UniV3 and CVX -> WETH on Sushi, then WETH -> stables together on UniV3
+    // Sells our CRV -> WETH on Curve and CVX -> WETH on Sushi, then WETH -> stables together on UniV3
     function _sellCrvAndCvx(uint256 _crvAmount, uint256 _convexAmount)
         internal
     {
@@ -447,21 +448,11 @@ contract StrategyConvexRAI is StrategyConvexBase {
                 block.timestamp
             );
         }
+
         if (_crvAmount > 0) {
-            IUniV3(uniswapv3).exactInput(
-                IUniV3.ExactInputParams(
-                    abi.encodePacked(
-                        address(crv),
-                        uint24(uniCrvFee),
-                        address(weth)
-                    ),
-                    address(this),
-                    block.timestamp,
-                    _crvAmount,
-                    uint256(1)
-                )
-            );
+            crveth.exchange(0, 1, _crvAmount, 0);
         }
+
         if (optimal != 3) {
             uint256 _wethBalance = weth.balanceOf(address(this));
             IUniV3(uniswapv3).exactInput(
@@ -648,12 +639,10 @@ contract StrategyConvexRAI is StrategyConvexBase {
     }
 
     // set the fee pool we'd like to swap through for CRV on UniV3 (1% = 10_000)
-    function setUniFees(
-        uint24 _crvFee,
-        uint24 _stableFee,
-        uint24 _raiFee
-    ) external onlyAuthorized {
-        uniCrvFee = _crvFee;
+    function setUniFees(uint24 _stableFee, uint24 _raiFee)
+        external
+        onlyAuthorized
+    {
         uniStableFee = _stableFee;
         uniRaiFee = _raiFee;
     }
