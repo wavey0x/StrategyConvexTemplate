@@ -27,6 +27,9 @@ def test_simple_harvest(
     # this is part of our check into the staking contract balance
     stakingBeforeHarvest = rewardsContract.balanceOf(strategy)
 
+    # change our optimal deposit asset
+    strategy.setOptimal(0, {"from": gov})
+
     # harvest, store asset amount
     chain.sleep(1)
     strategy.harvest({"from": gov})

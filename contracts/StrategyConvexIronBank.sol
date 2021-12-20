@@ -264,7 +264,9 @@ contract StrategyConvexIronBank is StrategyConvexBase {
     // we use these to deposit to our curve pool
     address public targetStable;
     address internal constant uniswapv3 =
-        address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    ICurveFi internal constant crveth =
+        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
     IERC20 internal constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     IERC20 internal constant usdc =
@@ -284,7 +286,7 @@ contract StrategyConvexIronBank is StrategyConvexBase {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
-        crv.approve(uniswapv3, type(uint256).max);
+        crv.approve(address(crveth), type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
 
         // setup our rewards contract
@@ -306,11 +308,10 @@ contract StrategyConvexIronBank is StrategyConvexBase {
         usdt.safeApprove(address(curve), type(uint256).max); // USDT requires safeApprove(), funky token
         usdc.approve(address(curve), type(uint256).max);
 
-        // start with dai
-        targetStable = address(dai);
+        // start with usdt
+        targetStable = address(usdt);
 
         // set our uniswap pool fees
-        uniCrvFee = 10000;
         uniStableFee = 500;
     }
 
@@ -336,10 +337,12 @@ contract StrategyConvexIronBank is StrategyConvexBase {
         if (_sendToVoter > 0) {
             crv.safeTransfer(voter, _sendToVoter);
         }
-        uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
-        if (crvRemainder > 0 || convexBalance > 0) {
-            _sellCrvAndCvx(crvRemainder, convexBalance);
+        // check our balance again after transferring some crv to our voter
+        crvBalance = crv.balanceOf(address(this));
+
+        if (crvBalance > 0 || convexBalance > 0) {
+            _sellCrvAndCvx(crvBalance, convexBalance);
         }
 
         // check for balances of tokens to deposit
@@ -417,21 +420,11 @@ contract StrategyConvexIronBank is StrategyConvexBase {
                 block.timestamp
             );
         }
+
         if (_crvAmount > 0) {
-            IUniV3(uniswapv3).exactInput(
-                IUniV3.ExactInputParams(
-                    abi.encodePacked(
-                        address(crv),
-                        uint24(uniCrvFee),
-                        address(weth)
-                    ),
-                    address(this),
-                    block.timestamp,
-                    _crvAmount,
-                    uint256(1)
-                )
-            );
+            crveth.exchange(1, 0, _crvAmount, 0, false);
         }
+
         uint256 _wethBalance = weth.balanceOf(address(this));
         IUniV3(uniswapv3).exactInput(
             IUniV3.ExactInputParams(
@@ -583,11 +576,7 @@ contract StrategyConvexIronBank is StrategyConvexBase {
     }
 
     // set the fee pool we'd like to swap through for CRV on UniV3 (1% = 10_000)
-    function setUniFees(uint24 _crvFee, uint24 _stableFee)
-        external
-        onlyAuthorized
-    {
-        uniCrvFee = _crvFee;
+    function setUniFees(uint24 _stableFee) external onlyAuthorized {
         uniStableFee = _stableFee;
     }
 }
