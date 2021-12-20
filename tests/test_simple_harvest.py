@@ -88,7 +88,7 @@ def test_simple_harvest(
 
     # Display estimated APR
     print(
-        "\nEstimated New APR: ",
+        "\nEstimated APR after LDO donation (should be very high): ",
         "{:.2%}".format(
             ((newer_assets - new_assets) * 365) / (strategy.estimatedTotalAssets())
         ),
