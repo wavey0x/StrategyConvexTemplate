@@ -538,6 +538,10 @@ def test_odds_and_ends_weird_amounts(
     chain.sleep(86400 * 7)
     chain.mine(1)
 
+    # can't set to 4
+    with brownie.reverts():
+        strategy.setOptimal(4, {"from": gov})
+
     # take 0% of our CRV to the voter
     strategy.setKeepCRV(0, {"from": gov})
     strategy.harvest({"from": gov})
