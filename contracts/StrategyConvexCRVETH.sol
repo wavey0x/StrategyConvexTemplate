@@ -325,6 +325,8 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         if (_sendToVoter > 0) {
             crv.safeTransfer(voter, _sendToVoter);
         }
+
+        // check our balance again after transferring some crv to our voter
         crvBalance = crv.balanceOf(address(this));
 
         if (convexBalance > 0) {
