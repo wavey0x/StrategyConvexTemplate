@@ -450,7 +450,7 @@ contract StrategyConvexRAI is StrategyConvexBase {
         }
 
         if (_crvAmount > 0) {
-            crveth.exchange(0, 1, _crvAmount, 0);
+            crveth.exchange(1, 0, _crvAmount, 0, false);
         }
 
         if (optimal != 3) {
