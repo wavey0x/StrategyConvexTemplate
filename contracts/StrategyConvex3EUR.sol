@@ -378,7 +378,6 @@ contract StrategyConvex3EUR is StrategyConvexBase {
         if (_sendToVoter > 0) {
             crv.safeTransfer(voter, _sendToVoter);
         }
-        uint256 crvRemainder = crvBalance.sub(_sendToVoter);
 
         // claim and sell our extra rewards for WETH
         uint256 angleBalance = angle.balanceOf(address(this));
@@ -386,8 +385,11 @@ contract StrategyConvex3EUR is StrategyConvexBase {
             _sellRewards(angleBalance);
         }
 
-        if (crvRemainder > 0 || convexBalance > 0) {
-            _sellCrvAndCvx(crvRemainder, convexBalance);
+        // check our balance again after transferring some crv to our voter
+        crvBalance = crv.balanceOf(address(this));
+
+        if (crvBalance > 0 || convexBalance > 0) {
+            _sellCrvAndCvx(crvBalance, convexBalance);
         }
 
         // deposit our balance to Curve if we have any
