@@ -287,7 +287,6 @@ contract StrategyConvexRAI is StrategyConvexBase {
         IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IERC20 internal constant rai =
         IERC20(0x03ab458634910AaD20eF5f1C8ee96F1D6ac54919);
-    uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
     uint24 public uniStableFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
     uint24 public uniRaiFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
 
@@ -301,7 +300,7 @@ contract StrategyConvexRAI is StrategyConvexBase {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
-        crv.approve(crveth, type(uint256).max);
+        crv.approve(address(crveth), type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
 
         // set our keepCRV

@@ -15,6 +15,7 @@ def test_triggers(
     amount,
     gasOracle,
     strategist_ms,
+    no_yield,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -46,17 +47,20 @@ def test_triggers(
         assert tx == False
     strategy.setCheckEarmark(False, {"from": gov})
 
-    # update our minProfit so our harvest triggers true
-    strategy.setHarvestProfitNeeded(1e6, 1000000e6, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
-
-    # update our maxProfit so harvest triggers true
-    strategy.setHarvestProfitNeeded(1000000e6, 1e6, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # update our minProfit so our harvest triggers true. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        strategy.setHarvestProfitNeeded(1e6, 1000000e6, {"from": gov})
+        tx = strategy.harvestTrigger(0, {"from": gov})
+        print("\nShould we harvest? Should be true.", tx)
+        assert tx == True
+        
+        # update our maxProfit so harvest triggers true
+        strategy.setHarvestProfitNeeded(1000000e6, 1e6, {"from": gov})
+        tx = strategy.harvestTrigger(0, {"from": gov})
+        print("\nShould we harvest? Should be true.", tx)
+        assert tx == True
 
     # earmark should be false now (it's been too long), turn it off after
     chain.sleep(86400 * 21)
