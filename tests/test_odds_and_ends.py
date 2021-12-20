@@ -54,7 +54,7 @@ def test_odds_and_ends(
     # print("\nShould we harvest? Should be true.", tx)
     # assert tx == True
 
-    chain.sleep(86400 * 2)
+    chain.sleep(86400)
     chain.mine(1)
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})

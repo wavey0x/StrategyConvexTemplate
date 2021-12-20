@@ -25,7 +25,7 @@ def whale(accounts):
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
 def amount():
-    amount = 100e18
+    amount = 500e18
     yield amount
 
 
@@ -40,7 +40,7 @@ def strategy_name():
 # this is the address of our rewards token, in this case it's a dummy (ALCX) that our whale happens to hold just used to test stuff
 @pytest.fixture(scope="module")
 def rewards_token():
-    yield Contract("0xdBdb4d16EdA451D0503b854CF79D55697F90c8DF")
+    yield Contract("0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32")
 
 
 # this is whether our pool has extra rewards tokens or not, use this to confirm that our strategy set everything up correctly.

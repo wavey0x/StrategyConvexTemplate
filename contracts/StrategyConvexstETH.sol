@@ -21,25 +21,6 @@ interface IWeth {
     function withdraw(uint256 wad) external;
 }
 
-interface IUniV3 {
-    struct ExactInputParams {
-        bytes path;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-    }
-
-    function exactInput(ExactInputParams calldata params)
-        external
-        payable
-        returns (uint256 amountOut);
-
-    function unwrapWETH9(uint256 amountMinimum, address recipient)
-        external
-        payable;
-}
-
 interface IConvexRewards {
     // strategy's staked balance in the synthetix staking contract
     function balanceOf(address account) external view returns (uint256);
@@ -272,8 +253,8 @@ contract StrategyConvexstETH is StrategyConvexBase {
     // we use these to deposit to our curve pool
     IERC20 internal constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    address internal constant uniswapv3 =
-        address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+    ICurveFi internal constant crveth =
+        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
     uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
 
     // rewards token info
@@ -291,7 +272,7 @@ contract StrategyConvexstETH is StrategyConvexBase {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
-        crv.approve(uniswapv3, type(uint256).max);
+        crv.approve(address(crveth), type(uint256).max);
 
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
@@ -329,9 +310,6 @@ contract StrategyConvexstETH is StrategyConvexBase {
 
         // set our strategy's name
         stratName = _name;
-
-        // set our uniswap pool fees
-        uniCrvFee = 10000;
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
@@ -356,7 +334,9 @@ contract StrategyConvexstETH is StrategyConvexBase {
         if (_sendToVoter > 0) {
             crv.safeTransfer(voter, _sendToVoter);
         }
-        uint256 crvRemainder = crvBalance.sub(_sendToVoter);
+
+        // check our balance again after transferring some crv to our voter
+        crvBalance = crv.balanceOf(address(this));
 
         // claim and sell our rewards if we have them
         if (hasRewards) {
@@ -368,7 +348,7 @@ contract StrategyConvexstETH is StrategyConvexBase {
         }
 
         // do this even if we have zero CVX or CRV since we use it to convert WETH to ETH
-        _sellCrvAndCvx(crvRemainder, convexBalance);
+        _sellCrvAndCvx(crvBalance, convexBalance);
 
         // deposit our ETH to the pool
         uint256 ethBalance = address(this).balance;
@@ -428,21 +408,11 @@ contract StrategyConvexstETH is StrategyConvexBase {
                 block.timestamp
             );
         }
+
         if (_crvAmount > 0) {
-            IUniV3(uniswapv3).exactInput(
-                IUniV3.ExactInputParams(
-                    abi.encodePacked(
-                        address(crv),
-                        uint24(uniCrvFee),
-                        address(weth)
-                    ),
-                    address(this),
-                    block.timestamp,
-                    _crvAmount,
-                    uint256(1)
-                )
-            );
+            crveth.exchange(1, 0, _crvAmount, 0, false);
         }
+
         uint256 wethBalance = weth.balanceOf(address(this));
         if (wethBalance > 0) {
             IWeth(address(weth)).withdraw(wethBalance);
@@ -641,10 +611,5 @@ contract StrategyConvexstETH is StrategyConvexBase {
     // determine whether we will check if our convex rewards need to be earmarked
     function setCheckEarmark(bool _checkEarmark) external onlyAuthorized {
         checkEarmark = _checkEarmark;
-    }
-
-    // set the fee pool we'd like to swap through for CRV on UniV3 (1% = 10_000)
-    function setUniFees(uint24 _crvFee) external onlyAuthorized {
-        uniCrvFee = _crvFee;
     }
 }
