@@ -295,7 +295,6 @@ contract StrategyConvex3EUR is StrategyConvexBase {
         ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
     address public targetStable = address(eurs);
     address internal middleStable = address(usdc);
-    uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
     uint24 public uniWethFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
     uint24 public uniStableFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
 
