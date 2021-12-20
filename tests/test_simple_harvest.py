@@ -40,6 +40,9 @@ def test_simple_harvest(
     # try and include custom logic here to check that funds are in the staking contract (if needed)
     assert rewardsContract.balanceOf(strategy) > stakingBeforeHarvest
 
+    # change our optimal deposit asset
+    strategy.setOptimal(0, {"from": gov})
+
     # simulate 1 day of earnings
     chain.sleep(86400)
     chain.mine(1)
@@ -93,7 +96,7 @@ def test_simple_harvest(
     )
 
     # change our optimal deposit asset
-    strategy.setOptimal(1, {"from": gov})
+    strategy.setOptimal(2, {"from": gov})
 
     # store asset amount
     before_usdc_assets = vault.totalAssets()

@@ -290,7 +290,9 @@ contract StrategyConvex3EUR is StrategyConvexBase {
 
     // uniswap fees and swap tokens
     address internal constant uniswapv3 =
-        address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    ICurveFi internal constant crveth =
+        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
     address public targetStable = address(eurs);
     address internal middleStable = address(usdc);
     uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
@@ -307,7 +309,7 @@ contract StrategyConvex3EUR is StrategyConvexBase {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(sushiswap, type(uint256).max);
-        crv.approve(uniswapv3, type(uint256).max);
+        crv.approve(address(crveth), type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
         ageur.approve(uniswapv3, type(uint256).max);
 
@@ -351,7 +353,6 @@ contract StrategyConvex3EUR is StrategyConvexBase {
         ageur.approve(address(curve), type(uint256).max);
 
         // set our uniswap pool fees
-        uniCrvFee = 10000;
         uniWethFee = 500;
         uniStableFee = 500;
     }
@@ -456,6 +457,7 @@ contract StrategyConvex3EUR is StrategyConvexBase {
             address(this),
             block.timestamp
         );
+
         uint256 ageurBalance = ageur.balanceOf(address(this));
         if (optimal == 1) {
             IUniV3(uniswapv3).exactInput(
@@ -511,21 +513,11 @@ contract StrategyConvex3EUR is StrategyConvexBase {
                 block.timestamp
             );
         }
+
         if (_crvAmount > 0) {
-            IUniV3(uniswapv3).exactInput(
-                IUniV3.ExactInputParams(
-                    abi.encodePacked(
-                        address(crv),
-                        uint24(uniCrvFee),
-                        address(weth)
-                    ),
-                    address(this),
-                    block.timestamp,
-                    _crvAmount,
-                    uint256(1)
-                )
-            );
+            crveth.exchange(1, 0, _crvAmount, 0, false);
         }
+
         uint256 _wethBalance = weth.balanceOf(address(this));
         if (_wethBalance > 0) {
             IUniV3(uniswapv3).exactInput(
@@ -695,16 +687,16 @@ contract StrategyConvex3EUR is StrategyConvexBase {
     // Default is EURS, but can be set to EURT or agEUR as needed by strategist or governance.
     function setOptimal(uint256 _optimal) external onlyAuthorized {
         if (_optimal == 0) {
-            targetStable = address(ageur);
             middleStable = address(usdc);
+            targetStable = address(ageur);
             optimal = 0;
         } else if (_optimal == 1) {
-            targetStable = address(eurt);
             middleStable = address(usdt);
+            targetStable = address(eurt);
             optimal = 1;
         } else if (_optimal == 2) {
-            targetStable = address(eurs);
             middleStable = address(usdc);
+            targetStable = address(eurs);
             optimal = 2;
         } else {
             revert("incorrect token");
@@ -716,13 +708,11 @@ contract StrategyConvex3EUR is StrategyConvexBase {
         checkEarmark = _checkEarmark;
     }
 
-    // set the fee pool we'd like to swap through for CRV on UniV3 (1% = 10_000)
-    function setUniFees(
-        uint24 _crvFee,
-        uint24 _wethFee,
-        uint24 _stableFee
-    ) external onlyAuthorized {
-        uniCrvFee = _crvFee;
+    // set the fee pool we'd like to swap through for on UniV3 (1% = 10_000)
+    function setUniFees(uint24 _wethFee, uint24 _stableFee)
+        external
+        onlyAuthorized
+    {
         uniWethFee = _wethFee;
         uniStableFee = _stableFee;
     }
