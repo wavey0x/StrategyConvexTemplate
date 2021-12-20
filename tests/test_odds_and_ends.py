@@ -24,6 +24,7 @@ def test_odds_and_ends(
     amount,
     pool,
     strategy_name,
+    rewards_token,
 ):
 
     ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
@@ -36,7 +37,7 @@ def test_odds_and_ends(
     chain.sleep(1)
 
     # send away all funds, will need to alter this based on strategy
-    # set claim rewards to true and send away CRV and CVX so we don't have dust leftover, this is a problem with uni v3
+    # set claim rewards to true and send away CRV and CVX so we don't have dust leftover
     strategy.setClaimRewards(True, {"from": gov})
     strategy.withdrawToConvexDepositTokens({"from": gov})
     to_send = cvxDeposit.balanceOf(strategy)
@@ -46,6 +47,8 @@ def test_odds_and_ends(
     crv.transfer(gov, to_send, {"from": strategy})
     to_send = convexToken.balanceOf(strategy)
     convexToken.transfer(gov, to_send, {"from": strategy})
+    to_send = rewards_token.balanceOf(strategy)
+    rewards_token.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     # we want to check when we have a loss
@@ -53,6 +56,9 @@ def test_odds_and_ends(
     # tx = strategy.harvestTrigger(0, {"from": gov})
     # print("\nShould we harvest? Should be true.", tx)
     # assert tx == True
+
+    # our whale donates 1 gwei to the vault so we don't divide by zero (0.3.0 vault, errors in vault._reportLoss)
+    token.transfer(strategy, 1, {"from": whale})
 
     chain.sleep(86400)
     chain.mine(1)
