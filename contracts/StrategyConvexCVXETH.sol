@@ -329,14 +329,17 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         // check our balance again after transferring some crv to our voter
         crvBalance = crv.balanceOf(address(this));
 
-        if (convexBalance > 0) {
-            _sellCvx(convexBalance);
+        if (crvBalance > 0) {
+            _sellCrv(crvBalance);
         }
 
         // deposit our balance to Curve if we have any
         uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0 || crvBalance > 0) {
-            curve.add_liquidity{value: ethBalance}([ethBalance, crvBalance], 0);
+        if (ethBalance > 0 || convexBalance > 0) {
+            curve.add_liquidity{value: ethBalance}(
+                [ethBalance, convexBalance],
+                0
+            );
         }
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio
