@@ -114,7 +114,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
 
     // Swap stuff
     address internal constant sushiswap =
-        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // default to sushiswap, more CRV and CVX liquidity there
+        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // we only use this for our profit calcs
 
     IERC20 internal constant crv =
         IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
@@ -261,16 +261,17 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexCRVETH is StrategyConvexBase {
+contract StrategyConvexCVXETH is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
     // Curve stuff
     ICurveFi public constant curve =
-        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // This is our pool specific to this vault.
+        ICurveFi(0xB576491F1E6e5E62f1d8F26062Ee822B40B0E0d4); // This is our pool specific to this vault.
     bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
+    ICurveFi internal constant crveth =
+        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
 
-    // we use these to deposit to our curve pool
     IERC20 internal constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
@@ -283,7 +284,7 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
     ) public StrategyConvexBase(_vault) {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
-        convexToken.approve(sushiswap, type(uint256).max);
+        crv.approve(address(crveth), type(uint256).max);
 
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
@@ -300,7 +301,7 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         stratName = _name;
 
         // these are our approvals and path specific to this contract
-        crv.approve(address(curve), type(uint256).max);
+        convexToken.approve(address(curve), type(uint256).max);
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
@@ -377,18 +378,11 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         forceHarvestTriggerOnce = false;
     }
 
-    // Sells our CVX -> WETH on Sushi
-    function _sellCvx(uint256 _convexAmount) internal {
-        address[] memory convexTokenPath = new address[](2);
-        convexTokenPath[0] = address(convexToken);
-        convexTokenPath[1] = address(weth);
-        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
-            _convexAmount,
-            uint256(0),
-            convexTokenPath,
-            address(this),
-            block.timestamp
-        );
+    // Sells our CRV -> WETH on Curve
+    function _sellCrv(uint256 _crvAmount) internal {
+        if (_crvAmount > 0) {
+            crveth.exchange(1, 0, _crvAmount, 0, false);
+        }
     }
 
     // migrate our want token to a new strategy if needed, make sure to check claimRewards first
