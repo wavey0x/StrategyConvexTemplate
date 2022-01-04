@@ -10,7 +10,7 @@ def isolation(fn_isolation):
 # put our pool's convex pid here; this is the only thing that should need to change up here **************
 @pytest.fixture(scope="module")
 def pid():
-    pid = 55
+    pid = 65
     yield pid
 
 
@@ -18,7 +18,7 @@ def pid():
 def whale(accounts):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    whale = accounts.at("0xcA7c767854B1E7305dE07247AB85E30543d1d9c9", force=True)
+    whale = accounts.at("0x76D4c13e6049d6a7E81981A4367c999C24870fc4", force=True)
     yield whale
 
 
@@ -32,7 +32,7 @@ def amount():
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "StrategyConvexEURTUSD"
+    strategy_name = "StrategyConvexXAUTUSD"
     yield strategy_name
 
 
@@ -219,7 +219,7 @@ def vault(pm, gov, rewards, guardian, management, token, chain):
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
 def strategy(
-    StrategyConvexEURTUSD,
+    StrategyConvexXAUTUSD,
     strategist,
     keeper,
     vault,
@@ -237,7 +237,7 @@ def strategy(
 ):
     # make sure to include all constructor parameters needed here
     strategy = strategist.deploy(
-        StrategyConvexEURTUSD,
+        StrategyConvexXAUTUSD,
         vault,
         pid,
         strategy_name,

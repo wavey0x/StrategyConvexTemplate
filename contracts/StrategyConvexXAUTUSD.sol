@@ -262,18 +262,18 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexEURTUSD is StrategyConvexBase {
+contract StrategyConvexXAUTUSD is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
     // Curve stuff
     ICurveFi public constant curve =
-        ICurveFi(0x5D0F47B32fDd343BfA74cE221808e2abE4A53827); // This is our pool specific to this vault.
+        ICurveFi(0xc5FA220347375ac4f91f9E4A4AAb362F22801504); // This is our pool specific to this vault. For crypto pools, these are "zaps".
 
     bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
 
     // we use these to deposit to our curve pool
-    uint256 internal optimal; // this is the optimal token to deposit back to our curve pool. 0 DAI, 1 USDC, 2 USDT, 3 EURT
+    uint256 internal optimal; // this is the optimal token to deposit back to our curve pool. 0 DAI, 1 USDC, 2 USDT, 3 XAUT
     address public targetStable;
     address internal constant uniswapv3 =
         address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
@@ -283,11 +283,11 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 internal constant dai =
         IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-    IERC20 internal constant eurt =
-        IERC20(0xC581b735A1688071A1746c968e0798D642EDE491);
+    IERC20 internal constant xaut =
+        IERC20(0x68749665FF8D2d112Fa859AA293F07A622782F38);
     uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
     uint24 public uniStableFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
-    uint24 public uniEurtFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
+    uint24 public uniXautFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -322,7 +322,7 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
         // these are our approvals and path specific to this contract
         dai.approve(address(curve), type(uint256).max);
         usdt.safeApprove(address(curve), type(uint256).max); // USDT requires safeApprove(), funky token
-        eurt.safeApprove(address(curve), type(uint256).max); // EURT requires safeApprove(), funky token
+        xaut.safeApprove(address(curve), type(uint256).max); // XAUT requires safeApprove(), funky token
         usdc.approve(address(curve), type(uint256).max);
 
         // start with dai
@@ -331,7 +331,7 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
         // set our uniswap pool fees
         uniCrvFee = 10000;
         uniStableFee = 500;
-        uniEurtFee = 500;
+        uniXautFee = 500;
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
@@ -379,9 +379,9 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
                 curve.add_liquidity([0, 0, 0, _usdtBalance], 0);
             }
         } else {
-            uint256 eurtBalance = eurt.balanceOf(address(this));
-            if (eurtBalance > 0) {
-                curve.add_liquidity([eurtBalance, 0, 0, 0], 0);
+            uint256 xautBalance = xaut.balanceOf(address(this));
+            if (xautBalance > 0) {
+                curve.add_liquidity([xautBalance, 0, 0, 0], 0);
             }
         }
 
@@ -484,8 +484,8 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
                         address(weth),
                         uint24(uniStableFee),
                         address(usdt),
-                        uint24(uniEurtFee),
-                        address(eurt)
+                        uint24(uniXautFee),
+                        address(xaut)
                     ),
                     address(this),
                     block.timestamp,
@@ -622,7 +622,7 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
     // These functions are useful for setting parameters of the strategy that may need to be adjusted.
 
     // Set optimal token to sell harvested funds for depositing to Curve.
-    // Default is DAI, but can be set to USDC or USDT or EURT as needed by strategist or governance.
+    // Default is DAI, but can be set to USDC or USDT or XAUT as needed by strategist or governance.
     function setOptimal(uint256 _optimal) external onlyAuthorized {
         if (_optimal == 0) {
             targetStable = address(dai);
@@ -634,7 +634,7 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
             targetStable = address(usdt);
             optimal = 2;
         } else if (_optimal == 3) {
-            targetStable = address(eurt);
+            targetStable = address(xaut);
             optimal = 3;
         } else {
             revert("incorrect token");
@@ -650,10 +650,10 @@ contract StrategyConvexEURTUSD is StrategyConvexBase {
     function setUniFees(
         uint24 _crvFee,
         uint24 _stableFee,
-        uint24 _eurtFee
+        uint24 _xautFee
     ) external onlyAuthorized {
         uniCrvFee = _crvFee;
         uniStableFee = _stableFee;
-        uniEurtFee = _eurtFee;
+        uniXautFee = _xautFee;
     }
 }
