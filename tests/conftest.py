@@ -49,12 +49,12 @@ def has_rewards():
     has_rewards = False
     yield has_rewards
 
+
 # use this if we don't expect to generate any rewards yet, for instance with a new Convex pool
 @pytest.fixture(scope="module")
 def no_yield():
-    no_yield = True
+    no_yield = False
     yield no_yield
-
 
 
 # Only worry about changing things above this line, unless you want to make changes to the vault or strategy.

@@ -486,7 +486,8 @@ def test_odds_and_ends_inactive_strat(
         tx = strategy.harvestTrigger(0, {"from": gov})
         print("\nShould we harvest? Should be true.", tx)
         assert tx == True
-    
+
+
 # this one tests if we don't have any CRV to send to voter or any left over after sending
 def test_odds_and_ends_weird_amounts(
     gov,

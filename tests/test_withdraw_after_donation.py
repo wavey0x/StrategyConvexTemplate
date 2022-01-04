@@ -139,7 +139,7 @@ def test_withdraw_after_donation_2(
     else:
         profit = new_params["totalGain"] - prev_params["totalGain"]
         assert profit > 0
-        
+
         # specifically check that our gain is greater than our donation.
         assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
@@ -213,7 +213,7 @@ def test_withdraw_after_donation_3(
     else:
         profit = new_params["totalGain"] - prev_params["totalGain"]
         assert profit > 0
-        
+
         # specifically check that our gain is greater than our donation.
         assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
@@ -356,7 +356,7 @@ def test_withdraw_after_donation_5(
     else:
         profit = new_params["totalGain"] - prev_params["totalGain"]
         assert profit > 0
-        
+
         # specifically check that our gain is greater than our donation.
         assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
@@ -421,7 +421,7 @@ def test_withdraw_after_donation_6(
     else:
         profit = new_params["totalGain"] - prev_params["totalGain"]
         assert profit > 0
-        
+
         # specifically check that our gain is greater than our donation.
         assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
@@ -515,7 +515,7 @@ def test_withdraw_after_donation_7(
     else:
         profit = new_params["totalGain"] - prev_params["totalGain"]
         assert profit > 0
-        
+
         # specifically check that our gain is greater than our donation.
         assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
@@ -600,7 +600,7 @@ def test_withdraw_after_donation_8(
     else:
         profit = new_params["totalGain"] - prev_params["totalGain"]
         assert profit > 0
-        
+
         # specifically check that our gain is greater than our donation.
         assert new_params["totalGain"] - prev_params["totalGain"] > donation
 

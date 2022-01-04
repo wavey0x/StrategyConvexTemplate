@@ -51,13 +51,13 @@ def test_triggers(
     if no_yield:
         print("we're done here")
     else:
-        strategy.setHarvestProfitNeeded(1e6, 1000000e6, {"from": gov})
+        strategy.setHarvestProfitNeeded(1, 1000000e6, {"from": gov})
         tx = strategy.harvestTrigger(0, {"from": gov})
         print("\nShould we harvest? Should be true.", tx)
         assert tx == True
-        
+
         # update our maxProfit so harvest triggers true
-        strategy.setHarvestProfitNeeded(1000000e6, 1e6, {"from": gov})
+        strategy.setHarvestProfitNeeded(1000000e6, 1, {"from": gov})
         tx = strategy.harvestTrigger(0, {"from": gov})
         print("\nShould we harvest? Should be true.", tx)
         assert tx == True
