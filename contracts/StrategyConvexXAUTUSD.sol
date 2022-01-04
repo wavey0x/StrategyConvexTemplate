@@ -276,15 +276,15 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
     uint256 internal optimal; // this is the optimal token to deposit back to our curve pool. 0 DAI, 1 USDC, 2 USDT, 3 XAUT
     address public targetStable;
 
+    // use Curve to sell our CVX and CRV rewards to WETH
     ICurveFi internal constant crveth =
         ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
-
     ICurveFi internal constant cvxeth =
         ICurveFi(0xB576491F1E6e5E62f1d8F26062Ee822B40B0E0d4); // use curve's new CVX-ETH crypto pool to sell our CVX
 
+    // use uniV3 to sell our WETH to stables or XAUT
     address internal constant uniswapv3 =
         address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
-
     IERC20 internal constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     IERC20 internal constant usdc =
@@ -293,7 +293,6 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
         IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     IERC20 internal constant xaut =
         IERC20(0x68749665FF8D2d112Fa859AA293F07A622782F38);
-    uint24 public uniCrvFee; // this is equal to 1%, can change this later if a different path becomes more optimal
     uint24 public uniStableFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
     uint24 public uniXautFee; // this is equal to 0.05%, can change this later if a different path becomes more optimal
 
@@ -306,8 +305,8 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
     ) public StrategyConvexBase(_vault) {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
-        convexToken.approve(sushiswap, type(uint256).max);
-        crv.approve(uniswapv3, type(uint256).max);
+        convexToken.approve(address(cvxeth), type(uint256).max);
+        crv.approve(address(crveth), type(uint256).max);
         weth.approve(uniswapv3, type(uint256).max);
 
         // set our keepCRV
@@ -337,7 +336,6 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
         targetStable = address(dai);
 
         // set our uniswap pool fees
-        uniCrvFee = 10000;
         uniStableFee = 500;
         uniXautFee = 500;
     }
@@ -437,33 +435,18 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
         }
     }
 
-    // Sells our CRV and CVX to WETH on Curve, then WETH -> stables together on UniV3
+    // Sells our CRV and CVX to WETH on Curve, then WETH -> stables or XAUT together on UniV3
     function _sellCrvAndCvx(uint256 _crvAmount, uint256 _convexAmount)
         internal
     {
         if (_convexAmount > 0) {
-            cvxeth.exchange(1, 0, _crvAmount, 0, false);
+            cvxeth.exchange(1, 0, _convexAmount, 0, false);
         }
 
         if (_crvAmount > 0) {
             crveth.exchange(1, 0, _crvAmount, 0, false);
         }
 
-        if (_crvAmount > 0) {
-            IUniV3(uniswapv3).exactInput(
-                IUniV3.ExactInputParams(
-                    abi.encodePacked(
-                        address(crv),
-                        uint24(uniCrvFee),
-                        address(weth)
-                    ),
-                    address(this),
-                    block.timestamp,
-                    _crvAmount,
-                    uint256(1)
-                )
-            );
-        }
         if (optimal != 3) {
             uint256 _wethBalance = weth.balanceOf(address(this));
             IUniV3(uniswapv3).exactInput(
@@ -649,13 +632,11 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
         checkEarmark = _checkEarmark;
     }
 
-    // set the fee pool we'd like to swap through for CRV on UniV3 (1% = 10_000)
-    function setUniFees(
-        uint24 _crvFee,
-        uint24 _stableFee,
-        uint24 _xautFee
-    ) external onlyAuthorized {
-        uniCrvFee = _crvFee;
+    // set the fee pool we'd like to swap through on UniV3 (1% = 10_000)
+    function setUniFees(uint24 _stableFee, uint24 _xautFee)
+        external
+        onlyAuthorized
+    {
         uniStableFee = _stableFee;
         uniXautFee = _xautFee;
     }
