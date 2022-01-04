@@ -105,7 +105,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
     address internal constant depositContract =
         0xF403C135812408BFbE8713b5A23a04b3D48AAE31; // this is the deposit contract that all pools use, aka booster
     IConvexRewards public rewardsContract; // This is unique to each curve pool
-    address public virtualRewardsPool; // This is only if we have bonus rewards
     uint256 public pid; // this is unique to each pool
 
     // keepCRV stuff
@@ -115,7 +114,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
 
     // Swap stuff
     address internal constant sushiswap =
-        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // default to sushiswap, more CRV and CVX liquidity there
+        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // default to sushiswap, we use this for our harvest profit calcs
 
     IERC20 internal constant crv =
         IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
