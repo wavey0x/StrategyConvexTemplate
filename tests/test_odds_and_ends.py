@@ -435,6 +435,7 @@ def test_odds_and_ends_inactive_strat(
     voter,
     cvxDeposit,
     amount,
+    no_yield,
 ):
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -477,11 +478,14 @@ def test_odds_and_ends_inactive_strat(
     print("\nShould we harvest? Should be false.", tx)
     assert tx == False
 
-    # adjust our limit to 0, then check
-    strategy.setHarvestProfitNeeded(0, 0, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # adjust our limit to 0, then check. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        strategy.setHarvestProfitNeeded(0, 0, {"from": gov})
+        tx = strategy.harvestTrigger(0, {"from": gov})
+        print("\nShould we harvest? Should be true.", tx)
+        assert tx == True
 
 
 # this one tests if we don't have any CRV to send to voter or any left over after sending

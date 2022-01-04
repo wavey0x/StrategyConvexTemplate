@@ -12,6 +12,7 @@ def test_withdraw_after_donation_1(
     strategy,
     chain,
     amount,
+    no_yield,
 ):
 
     ## deposit to the vault after approving
@@ -57,8 +58,11 @@ def test_withdraw_after_donation_1(
     # check that we've recorded a gain
     assert profit > 0
 
-    # specifically check that our gain is greater than our donation or confirm we're no more than 5 wei off.
-    assert new_params["totalGain"] - prev_params["totalGain"] > donation
+    # specifically check that our gain is greater than our donation. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check to make sure that our debtRatio is about half of our previous debt
     assert new_params["debtRatio"] == currentDebt / 2
@@ -86,6 +90,7 @@ def test_withdraw_after_donation_2(
     strategy,
     chain,
     amount,
+    no_yield,
 ):
 
     ## deposit to the vault after approving
@@ -128,11 +133,15 @@ def test_withdraw_after_donation_2(
 
     profit = new_params["totalGain"] - prev_params["totalGain"]
 
-    # check that we've recorded a gain
-    assert profit > 0
+    # check that we've recorded a gain. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        profit = new_params["totalGain"] - prev_params["totalGain"]
+        assert profit > 0
 
-    # specifically check that our gain is greater than our donation or confirm we're no more than 5 wei off.
-    assert new_params["totalGain"] - prev_params["totalGain"] > donation
+        # specifically check that our gain is greater than our donation.
+        assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
     assert new_params["totalLoss"] == prev_params["totalLoss"]
@@ -157,6 +166,7 @@ def test_withdraw_after_donation_3(
     strategy,
     chain,
     amount,
+    no_yield,
 ):
 
     ## deposit to the vault after approving
@@ -197,13 +207,15 @@ def test_withdraw_after_donation_3(
     # sleep 10 hours to increase our credit available for last assert at the bottom.
     chain.sleep(60 * 60 * 10)
 
-    profit = new_params["totalGain"] - prev_params["totalGain"]
+    # check that we've recorded a gain. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        profit = new_params["totalGain"] - prev_params["totalGain"]
+        assert profit > 0
 
-    # check that we've recorded a gain
-    assert profit > 0
-
-    # specifically check that our gain is greater than our donation or confirm we're no more than 5 wei off.
-    assert new_params["totalGain"] - prev_params["totalGain"] > donation
+        # specifically check that our gain is greater than our donation.
+        assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
     assert new_params["totalLoss"] == prev_params["totalLoss"]
@@ -306,6 +318,7 @@ def test_withdraw_after_donation_5(
     strategy,
     chain,
     amount,
+    no_yield,
 ):
 
     ## deposit to the vault after approving
@@ -337,13 +350,15 @@ def test_withdraw_after_donation_5(
     # sleep 10 hours to increase our credit available for last assert at the bottom.
     chain.sleep(60 * 60 * 10)
 
-    profit = new_params["totalGain"] - prev_params["totalGain"]
+    # check that we've recorded a gain. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        profit = new_params["totalGain"] - prev_params["totalGain"]
+        assert profit > 0
 
-    # check that we've recorded a gain
-    assert profit > 0
-
-    # specifically check that our gain is greater than our donation or confirm we're no more than 5 wei off.
-    assert new_params["totalGain"] - prev_params["totalGain"] > donation
+        # specifically check that our gain is greater than our donation.
+        assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
     assert new_params["totalLoss"] == prev_params["totalLoss"]
@@ -368,6 +383,7 @@ def test_withdraw_after_donation_6(
     strategy,
     chain,
     amount,
+    no_yield,
 ):
 
     ## deposit to the vault after approving
@@ -399,13 +415,15 @@ def test_withdraw_after_donation_6(
     # sleep 10 hours to increase our credit available for last assert at the bottom.
     chain.sleep(60 * 60 * 10)
 
-    profit = new_params["totalGain"] - prev_params["totalGain"]
+    # check that we've recorded a gain. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        profit = new_params["totalGain"] - prev_params["totalGain"]
+        assert profit > 0
 
-    # check that we've recorded a gain
-    assert profit > 0
-
-    # specifically check that our gain is greater than our donation or confirm we're no more than 5 wei off.
-    assert new_params["totalGain"] - prev_params["totalGain"] > donation
+        # specifically check that our gain is greater than our donation.
+        assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
     assert new_params["totalLoss"] == prev_params["totalLoss"]
@@ -431,6 +449,7 @@ def test_withdraw_after_donation_7(
     chain,
     amount,
     rewardsContract,
+    no_yield,
 ):
 
     ## deposit to the vault after approving
@@ -490,13 +509,15 @@ def test_withdraw_after_donation_7(
     chain.sleep(86400)
     chain.mine(1)
 
-    profit = new_params["totalGain"] - prev_params["totalGain"]
+    # check that we've recorded a gain. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        profit = new_params["totalGain"] - prev_params["totalGain"]
+        assert profit > 0
 
-    # check that we've recorded a gain
-    assert profit > 0
-
-    # specifically check that our gain is greater than our donation or confirm we're no more than 5 wei off.
-    assert new_params["totalGain"] - prev_params["totalGain"] > donation
+        # specifically check that our gain is greater than our donation.
+        assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
     assert new_params["totalLoss"] == prev_params["totalLoss"]
@@ -513,6 +534,7 @@ def test_withdraw_after_donation_8(
     chain,
     amount,
     rewardsContract,
+    no_yield,
 ):
 
     ## deposit to the vault after approving
@@ -572,13 +594,15 @@ def test_withdraw_after_donation_8(
     chain.sleep(86400)
     chain.mine(1)
 
-    profit = new_params["totalGain"] - prev_params["totalGain"]
+    # check that we've recorded a gain. Skip this if we don't have yield
+    if no_yield:
+        print("we're done here")
+    else:
+        profit = new_params["totalGain"] - prev_params["totalGain"]
+        assert profit > 0
 
-    # check that we've recorded a gain
-    assert profit > 0
-
-    # specifically check that our gain is greater than our donation or confirm we're no more than 5 wei off.
-    assert new_params["totalGain"] - prev_params["totalGain"] > donation
+        # specifically check that our gain is greater than our donation.
+        assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
     assert new_params["totalLoss"] == prev_params["totalLoss"]

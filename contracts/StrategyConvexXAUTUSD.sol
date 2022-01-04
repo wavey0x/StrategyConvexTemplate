@@ -275,8 +275,16 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
     // we use these to deposit to our curve pool
     uint256 internal optimal; // this is the optimal token to deposit back to our curve pool. 0 DAI, 1 USDC, 2 USDT, 3 XAUT
     address public targetStable;
+
+    ICurveFi internal constant crveth =
+        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
+
+    ICurveFi internal constant cvxeth =
+        ICurveFi(0xB576491F1E6e5E62f1d8F26062Ee822B40B0E0d4); // use curve's new CVX-ETH crypto pool to sell our CVX
+
     address internal constant uniswapv3 =
         address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+
     IERC20 internal constant usdt =
         IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     IERC20 internal constant usdc =
@@ -429,23 +437,18 @@ contract StrategyConvexXAUTUSD is StrategyConvexBase {
         }
     }
 
-    // Sells our CRV -> WETH on UniV3 and CVX -> WETH on Sushi, then WETH -> stables together on UniV3
+    // Sells our CRV and CVX to WETH on Curve, then WETH -> stables together on UniV3
     function _sellCrvAndCvx(uint256 _crvAmount, uint256 _convexAmount)
         internal
     {
-        address[] memory convexTokenPath = new address[](2);
-        convexTokenPath[0] = address(convexToken);
-        convexTokenPath[1] = address(weth);
-
         if (_convexAmount > 0) {
-            IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
-                _convexAmount,
-                uint256(0),
-                convexTokenPath,
-                address(this),
-                block.timestamp
-            );
+            cvxeth.exchange(1, 0, _crvAmount, 0, false);
         }
+
+        if (_crvAmount > 0) {
+            crveth.exchange(1, 0, _crvAmount, 0, false);
+        }
+
         if (_crvAmount > 0) {
             IUniV3(uniswapv3).exactInput(
                 IUniV3.ExactInputParams(
