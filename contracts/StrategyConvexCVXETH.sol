@@ -302,6 +302,7 @@ contract StrategyConvexCVXETH is StrategyConvexBase {
 
         // these are our approvals and path specific to this contract
         convexToken.approve(address(curve), type(uint256).max);
+        weth.approve(address(curve), type(uint256).max);
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
@@ -334,13 +335,9 @@ contract StrategyConvexCVXETH is StrategyConvexBase {
             _sellCrv(crvBalance);
         }
 
-        // deposit our balance to Curve if we have any
-        uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0 || convexBalance > 0) {
-            curve.add_liquidity{value: ethBalance}(
-                [ethBalance, convexBalance],
-                0
-            );
+        uint256 wethBalance = weth.balanceOf(address(this));
+        if (wethBalance > 0 || convexBalance > 0) {
+            curve.add_liquidity([wethBalance, convexBalance], 0, false);
         }
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio

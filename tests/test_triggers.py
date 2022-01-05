@@ -70,8 +70,9 @@ def test_triggers(
     assert tx == False
     strategy.setCheckEarmark(False, {"from": gov})
 
-    # harvest, wait
+    # harvest, turn off health check since it's been so long, it may be a big harvest
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(86400)
     chain.mine(1)
