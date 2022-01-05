@@ -285,7 +285,7 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
     ) public StrategyConvexBase(_vault) {
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
-        convexToken.approve(sushiswap, type(uint256).max);
+        convexToken.approve(address(cvxeth), type(uint256).max);
 
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
@@ -303,6 +303,7 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
 
         // these are our approvals and path specific to this contract
         crv.approve(address(curve), type(uint256).max);
+        weth.approve(address(curve), type(uint256).max);
     }
 
     /* ========== VARIABLE FUNCTIONS ========== */
