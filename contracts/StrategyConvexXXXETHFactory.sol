@@ -261,31 +261,112 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexCRVETH is StrategyConvexBase {
+contract StrategyConvexXXXETHFactory is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
     // Curve stuff
-    ICurveFi public constant curve =
-        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // This is our pool specific to this vault.
+    ICurveFi public curve; // This is our pool specific to this vault.
     bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
 
+    // use Curve to sell our CVX and CRV rewards to WETH
+    ICurveFi internal constant crveth =
+        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
     ICurveFi internal constant cvxeth =
         ICurveFi(0xB576491F1E6e5E62f1d8F26062Ee822B40B0E0d4); // use curve's new CVX-ETH crypto pool to sell our CVX
 
     IERC20 internal constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
+    // check for cloning
+    bool internal isOriginal = true;
+
     /* ========== CONSTRUCTOR ========== */
 
     constructor(
         address _vault,
         uint256 _pid,
+        address _curvePool,
         string memory _name
     ) public StrategyConvexBase(_vault) {
+        _initializeStrat(_pid, _curvePool, _name);
+    }
+
+    /* ========== CLONING ========== */
+
+    event Cloned(address indexed clone);
+
+    // we use this to clone our original strategy to other vaults
+    function cloneConvex3CrvRewards(
+        address _vault,
+        address _strategist,
+        address _rewardsToken,
+        address _keeper,
+        uint256 _pid,
+        address _curvePool,
+        string memory _name
+    ) external returns (address newStrategy) {
+        require(isOriginal);
+        // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
+        bytes20 addressBytes = bytes20(address(this));
+        assembly {
+            // EIP-1167 bytecode
+            let clone_code := mload(0x40)
+            mstore(
+                clone_code,
+                0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
+            )
+            mstore(add(clone_code, 0x14), addressBytes)
+            mstore(
+                add(clone_code, 0x28),
+                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
+            )
+            newStrategy := create(0, clone_code, 0x37)
+        }
+
+        StrategyConvex3CrvRewardsClonable(newStrategy).initialize(
+            _vault,
+            _strategist,
+            _rewardsToken,
+            _keeper,
+            _pid,
+            _curvePool,
+            _name
+        );
+
+        emit Cloned(newStrategy);
+    }
+
+    // this will only be called by the clone function above
+    function initialize(
+        address _vault,
+        address _strategist,
+        address _rewards,
+        address _keeper,
+        uint256 _pid,
+        address _curvePool,
+        string memory _name
+    ) public {
+        _initialize(_vault, _strategist, _rewards, _keeper);
+        _initializeStrat(_pid, _curvePool, _name);
+    }
+
+    // this is called by our original strategy, as well as any clones
+    function _initializeStrat(
+        uint256 _pid,
+        address _curvePool,
+        string memory _name
+    ) internal {
+        // make sure that we haven't initialized this before
+        require(address(curve) == address(0)); // already initialized.
+
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
         convexToken.approve(address(cvxeth), type(uint256).max);
+        crv.approve(address(crveth), type(uint256).max);
+
+        // this is the pool specific to this vault, but we only use it as an address
+        curve = address(_curvePool);
 
         // setup our rewards contract
         pid = _pid; // this is the pool ID on convex, we use this to determine what the reweardsContract address is
@@ -302,7 +383,6 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         stratName = _name;
 
         // these are our approvals and path specific to this contract
-        crv.approve(address(curve), type(uint256).max);
         weth.approve(address(curve), type(uint256).max);
     }
 
@@ -332,14 +412,14 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         // check our balance again after transferring some crv to our voter
         crvBalance = crv.balanceOf(address(this));
 
-        if (convexBalance > 0) {
-            _sellCvx(convexBalance);
+        if (crvBalance > 0 || convexBalance > 0) {
+            _sellCrvAndCvx(crvBalance, convexBalance);
         }
 
         // deposit our balance to Curve if we have any
         uint256 wethBalance = weth.balanceOf(address(this));
-        if (wethBalance > 0 || crvBalance > 0) {
-            curve.add_liquidity([wethBalance, crvBalance], 0, false);
+        if (wethBalance > 0) {
+            curve.add_liquidity([wethBalance, 0], 0, false);
         }
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio
@@ -377,10 +457,14 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         forceHarvestTriggerOnce = false;
     }
 
-    // Sells our CVX -> WETH on Curve
-    function _sellCvx(uint256 _convexAmount) internal {
+    // Sells our CRV and CVX for WETH on Curve
+    function _sellCrvAndCvx(uint256 _crvAmount, uint256 _convexAmount) {
         if (_convexAmount > 0) {
             cvxeth.exchange(1, 0, _convexAmount, 0, false);
+        }
+
+        if (_crvAmount > 0) {
+            crveth.exchange(1, 0, _crvAmount, 0, false);
         }
     }
 
