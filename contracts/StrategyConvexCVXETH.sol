@@ -335,6 +335,7 @@ contract StrategyConvexCVXETH is StrategyConvexBase {
             _sellCrv(crvBalance);
         }
 
+        // deposit our balance to Curve if we have any
         uint256 wethBalance = weth.balanceOf(address(this));
         if (wethBalance > 0 || convexBalance > 0) {
             curve.add_liquidity([wethBalance, convexBalance], 0, false);
