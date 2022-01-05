@@ -114,7 +114,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
 
     // Swap stuff
     address internal constant sushiswap =
-        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // default to sushiswap, more CRV and CVX liquidity there
+        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F; // we only use this for our profit calcs
 
     IERC20 internal constant crv =
         IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
@@ -270,7 +270,9 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // This is our pool specific to this vault.
     bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
 
-    // we use these to deposit to our curve pool
+    ICurveFi internal constant cvxeth =
+        ICurveFi(0xB576491F1E6e5E62f1d8F26062Ee822B40B0E0d4); // use curve's new CVX-ETH crypto pool to sell our CVX
+
     IERC20 internal constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
 
@@ -334,9 +336,9 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         }
 
         // deposit our balance to Curve if we have any
-        uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0 || crvBalance > 0) {
-            curve.add_liquidity{value: ethBalance}([ethBalance, crvBalance], 0);
+        uint256 wethBalance = weth.balanceOf(address(this));
+        if (wethBalance > 0 || crvBalance > 0) {
+            curve.add_liquidity([wethBalance, crvBalance], 0, false);
         }
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio
@@ -374,18 +376,11 @@ contract StrategyConvexCRVETH is StrategyConvexBase {
         forceHarvestTriggerOnce = false;
     }
 
-    // Sells our CVX -> WETH on Sushi
+    // Sells our CVX -> WETH on Curve
     function _sellCvx(uint256 _convexAmount) internal {
-        address[] memory convexTokenPath = new address[](2);
-        convexTokenPath[0] = address(convexToken);
-        convexTokenPath[1] = address(weth);
-        IUniswapV2Router02(sushiswap).swapExactTokensForTokens(
-            _convexAmount,
-            uint256(0),
-            convexTokenPath,
-            address(this),
-            block.timestamp
-        );
+        if (_convexAmount > 0) {
+            cvxeth.exchange(1, 0, _convexAmount, 0, false);
+        }
     }
 
     // migrate our want token to a new strategy if needed, make sure to check claimRewards first
