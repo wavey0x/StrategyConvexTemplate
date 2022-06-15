@@ -436,7 +436,7 @@ contract StrategyConvexUsdcPairsClonable is StrategyConvexBase {
         // deposit our USDC to the pool
         uint256 usdcBalance = usdc.balanceOf(address(this));
         if (usdcBalance > 0) {
-            curve.add_liquidity([0, usdcBalance], 0);
+            curve.add_liquidity([usdcBalance, 0], 0);
         }
 
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio

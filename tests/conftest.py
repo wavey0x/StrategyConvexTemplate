@@ -29,7 +29,7 @@ def tenderly_fork(web3, chain):
 # put our pool's convex pid here; this is the only thing that should need to change up here **************
 @pytest.fixture(scope="module")
 def pid():
-    pid = 95  # CAD 79, STG 95
+    pid = 54  # CAD 79, STG 95, EURS-USDC 54
     yield pid
 
 
@@ -38,8 +38,8 @@ def whale(accounts):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
     whale = accounts.at(
-        "0xeCb456EA5365865EbAb8a2661B0c503410e9B347", force=True
-    )  # 0x26f539A0fE189A7f228D7982BF10Bc294FA9070c for CAD-USDC (270k total), 0xeCb456EA5365865EbAb8a2661B0c503410e9B347 for STG-USDC
+        "0x3dfCfAAC8ee248cf9976e866822f2DAac2Ac7D03", force=True
+    )  # 0x26f539A0fE189A7f228D7982BF10Bc294FA9070c for CAD-USDC (270k total), 0xeCb456EA5365865EbAb8a2661B0c503410e9B347 for STG-USDC, EURS-USDC for 0x3dfCfAAC8ee248cf9976e866822f2DAac2Ac7D03
     yield whale
 
 
@@ -74,8 +74,8 @@ def sleep_time():
 # curve deposit pool, for old curve pools and crypto LPs set this manually
 @pytest.fixture(scope="module")
 def pool():
-    poolAddress = Contract("0x3211C6cBeF1429da3D0d58494938299C92Ad5860")
-    # 0xE07BDe9Eb53DEFfa979daE36882014B758111a78 for CAD-USDC, 0x3211C6cBeF1429da3D0d58494938299C92Ad5860 for STG-USDC
+    poolAddress = Contract("0x98a7F18d4E56Cfe84E3D081B40001B3d5bD3eB8B")
+    # 0xE07BDe9Eb53DEFfa979daE36882014B758111a78 for CAD-USDC, 0x3211C6cBeF1429da3D0d58494938299C92Ad5860 for STG-USDC, 0x98a7F18d4E56Cfe84E3D081B40001B3d5bD3eB8B for EURS
     yield poolAddress
 
 
