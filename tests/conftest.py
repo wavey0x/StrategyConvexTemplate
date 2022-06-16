@@ -29,7 +29,7 @@ def tenderly_fork(web3, chain):
 # put our pool's convex pid here; this is the only thing that should need to change up here **************
 @pytest.fixture(scope="module")
 def pid():
-    pid = 29  # IB 29, Aave 24
+    pid = 3  # yUSD 2, yBUSD 3
     yield pid
 
 
@@ -38,9 +38,9 @@ def whale(accounts, amount, token):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
     whale = accounts.at(
-        "0x1a6525E4a4aB2E3aEa7ED3CF813e8ed07fA3446D",
-        force=True,  # IB 0x1a6525E4a4aB2E3aEa7ED3CF813e8ed07fA3446D
-    )  # 0x03403154afc09Ce8e44C3B185C82C6aD5f86b9ab for Aave
+        "0x613d9871c25721E8f90ACF8cC4341Bb145F29C23",
+        force=True,  # yUSD 0xC53195Bbad57105cc9a4DF752121AfD9C15FBd8f
+    )  # 0x613d9871c25721E8f90ACF8cC4341Bb145F29C23 for yBUSD
     if token.balanceOf(whale) < 2 * amount:
         raise ValueError(
             "Our whale needs more funds. Find another whale or reduce your amount variable."
@@ -51,32 +51,32 @@ def whale(accounts, amount, token):
 # use this if your vault is already deployed
 @pytest.fixture(scope="function")
 def vault_address():
-    vault_address = "0x27b7b1ad7288079A66d12350c828D3C00A6F07d7"
-    # Iron Bank 0x27b7b1ad7288079A66d12350c828D3C00A6F07d7
-    # Aave 0x39CAF13a104FF567f71fd2A4c68C026FDB6E740B
+    vault_address = "0x8ee57c05741aA9DB947A744E713C15d4d19D8822"
+    # yUSD 0x4B5BfD52124784745c1071dcB244C6688d2533d3
+    # yBUSD 0x8ee57c05741aA9DB947A744E713C15d4d19D8822
     yield vault_address
 
 
 # curve deposit pool, for old curve pools set this manually
 @pytest.fixture(scope="module")
 def pool():
-    poolAddress = Contract("0x2dded6Da1BF5DBdF597C45fcFaa3194e53EcfeAF")
-    # IB 0x2dded6Da1BF5DBdF597C45fcFaa3194e53EcfeAF
-    # Aave 0xDeBF20617708857ebe4F679508E7b7863a8A8EeE
+    poolAddress = Contract("0xb6c057591E073249F2D9D88Ba59a46CFC9B59EdB")
+    # yUSD 0xbBC81d23Ea2c3ec7e56D39296F0cbB648873a5d3
+    # yBUSD 0xb6c057591E073249F2D9D88Ba59a46CFC9B59EdB
     yield poolAddress
 
 
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
 def amount():
-    amount = 40_000e18
+    amount = 250_000e18
     yield amount
 
 
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "StrategyConvexUnderlying3Clonable"
+    strategy_name = "StrategyConvexUnderlying4Clonable"
     yield strategy_name
 
 
@@ -87,7 +87,7 @@ def sleep_time():
     hour = 3600
 
     # change this one right here
-    hours_to_sleep = 2
+    hours_to_sleep = 24
 
     sleep_time = hour * hours_to_sleep
     yield sleep_time
@@ -265,7 +265,7 @@ def vault(pm, gov, rewards, guardian, management, token, chain, vault_address):
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
 def strategy(
-    StrategyConvexUnderlying3Clonable,
+    StrategyConvexUnderlying4Clonable,
     strategist,
     keeper,
     vault,
@@ -284,7 +284,7 @@ def strategy(
 ):
     # make sure to include all constructor parameters needed here
     strategy = strategist.deploy(
-        StrategyConvexUnderlying3Clonable,
+        StrategyConvexUnderlying4Clonable,
         vault,
         pid,
         pool,

@@ -259,7 +259,7 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 }
 
-contract StrategyConvexUnderlying3Clonable is StrategyConvexBase {
+contract StrategyConvexUnderlying4Clonable is StrategyConvexBase {
     /* ========== STATE VARIABLES ========== */
     // these will likely change across different wants.
 
@@ -330,7 +330,7 @@ contract StrategyConvexUnderlying3Clonable is StrategyConvexBase {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        StrategyConvexUnderlying3Clonable(newStrategy).initialize(
+        StrategyConvexUnderlying4Clonable(newStrategy).initialize(
             _vault,
             _strategist,
             _rewards,
@@ -367,9 +367,9 @@ contract StrategyConvexUnderlying3Clonable is StrategyConvexBase {
         require(address(curve) == address(0)); // already initialized.
 
         // You can set these parameters on deployment to whatever you want
-        maxReportDelay = 21 days; // 21 days in seconds, if we hit this then harvestTrigger = True
+        maxReportDelay = 365 days; // 365 days in seconds, if we hit this then harvestTrigger = True
         healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012; // health.ychad.eth
-        harvestProfitMin = 60000e6;
+        harvestProfitMin = 30000e6;
         harvestProfitMax = 120000e6;
         creditThreshold = 1e6 * 1e18;
         keepCRV = 1000; // default of 10%
@@ -449,9 +449,8 @@ contract StrategyConvexUnderlying3Clonable is StrategyConvexBase {
         // deposit our balance to Curve if we have any
         if (_daiBalance > 0 || _usdcBalance > 0 || _usdtBalance > 0) {
             curve.add_liquidity(
-                [_daiBalance, _usdcBalance, _usdtBalance],
-                0,
-                true
+                [_daiBalance, _usdcBalance, _usdtBalance, 0],
+                0
             );
         }
 
