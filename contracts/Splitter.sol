@@ -185,15 +185,24 @@ contract Splitter {
     // @dev Other values in the struct are either immutable or require agreement by both parties to update.
     function setYearn(address _recipient, uint _keepCRV) external {
         require(msg.sender == yearn.admin);
-        require(_keepCRV <= 10_000, "!tooHigh");
-        yearn.recipient = _recipient;
+        require(_keepCRV <= 10_000, "TooHigh");
+        address recipient = yearn.recipient;
+        if(recipient != _recipient){
+            pendingShare[yearn.recipient] = 0;
+            yearn.recipient = _recipient;
+        }
         yearn.keepCRV = _keepCRV;
+        emit YearnUpdated(_recipient, _keepCRV);
     }
 
     function setTemple(address _recipient) external {
-        require(msg.sender == templeRecipient);
-        templeRecipient = _recipient;
-        emit TempleUpdated(_recipient);
+        address recipient = templeRecipient;
+        require(msg.sender == recipient);
+        if(recipient != _recipient){
+            pendingShare[recipient] = 0;
+            templeRecipient = _recipient;
+            emit TempleUpdated(_recipient);
+        }
     }
 
     // @notice update share if both parties agree.
