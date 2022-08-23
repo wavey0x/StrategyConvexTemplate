@@ -188,7 +188,7 @@ contract Splitter {
         require(_keepCRV <= 10_000, "TooHigh");
         address recipient = yearn.recipient;
         if(recipient != _recipient){
-            pendingShare[yearn.recipient] = 0;
+            pendingShare[recipient] = 0;
             yearn.recipient = _recipient;
         }
         yearn.keepCRV = _keepCRV;
