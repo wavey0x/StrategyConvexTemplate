@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/Math.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 interface IGauge {
     struct VotedSlope {
@@ -37,6 +37,8 @@ interface IYveCRV {
 }
 
 contract Splitter {
+    
+    using SafeMath for uint256;
 
     event Split(uint yearnAmount, uint keep, uint templeAmount, uint period);
     event PeriodUpdated(uint period, uint globalSlope, uint userSlope);
@@ -146,7 +148,7 @@ contract Splitter {
             / lpSupply;
         if (gaugeDominance == 0) return (10_000, 0); // @dev avoid div by 0
         yRatio = 
-            relativeSlope.mul
+            relativeSlope
             * yearn.share
             / gaugeDominance;
         // Should not return > 100%
