@@ -4,8 +4,7 @@ pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/math/Math.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
 interface IGauge {
     struct VotedSlope {
@@ -38,6 +37,8 @@ interface IYveCRV {
 }
 
 contract Splitter {
+    
+    using SafeMath for uint256;
 
     event Split(uint yearnAmount, uint keep, uint templeAmount, uint period);
     event PeriodUpdated(uint period, uint globalSlope, uint userSlope);
@@ -72,7 +73,7 @@ contract Splitter {
     Yearn yearn;
     Period period;
     address public strategy;
-    address templeRecipient = 0x5C8898f8E0F9468D4A677887bC03EE2659321012;
+    address templeRecipient = 0xE97CB3a6A0fb5DA228976F3F2B8c37B6984e7915;
     
     constructor() public {
         crv.approve(address(yvecrv), type(uint).max);
@@ -118,7 +119,7 @@ contract Splitter {
             yvecrv.deposit(keep);
             IERC20(address(yvecrv)).transfer(yearn.recipient, keep);
         }
-        crv.transferFrom(_strategy, yearn.recipient, yearnAmount - keep);
+        crv.transferFrom(_strategy, yearn.recipient, yearnAmount.sub(keep));
         crv.transferFrom(_strategy, templeRecipient, templeAmount);
         emit Split(yearnAmount, keep, templeAmount, period.period);
     }
@@ -138,7 +139,7 @@ contract Splitter {
     function _computeSplitRatios() internal view returns (uint yRatio, uint tRatio) {
         uint userSlope = period.userSlope;
         if(userSlope == 0) return (0, 10_000);
-        uint relativeSlope = userSlope * precision / period.globalSlope;
+        uint relativeSlope = period.globalSlope == 0 ? 0 : userSlope * precision / period.globalSlope;
         uint lpSupply = liquidityPool.totalSupply();
         if (lpSupply == 0) return (10_000, 0); // @dev avoid div by 0
         uint gaugeDominance = 
@@ -154,7 +155,7 @@ contract Splitter {
         if (yRatio > 10_000){
             return (10_000, 0);
         }
-        tRatio = precision - yRatio;
+        tRatio = precision.sub(yRatio);
     }
 
     // @dev Estimate only. 
@@ -163,7 +164,7 @@ contract Splitter {
         (uint y, uint t) = _computeSplitRatios();
         uint bal = crv.balanceOf(strategy);
         ySplit = bal * y / precision;
-        tSplit = bal - ySplit;
+        tSplit = bal.sub(ySplit);
     }
 
     // @dev Estimate only.
@@ -184,15 +185,24 @@ contract Splitter {
     // @dev Other values in the struct are either immutable or require agreement by both parties to update.
     function setYearn(address _recipient, uint _keepCRV) external {
         require(msg.sender == yearn.admin);
-        require(_keepCRV <= 10_000, "!tooHigh");
-        yearn.recipient = _recipient;
+        require(_keepCRV <= 10_000, "TooHigh");
+        address recipient = yearn.recipient;
+        if(recipient != _recipient){
+            pendingShare[recipient] = 0;
+            yearn.recipient = _recipient;
+        }
         yearn.keepCRV = _keepCRV;
+        emit YearnUpdated(_recipient, _keepCRV);
     }
 
     function setTemple(address _recipient) external {
-        require(msg.sender == templeRecipient);
-        templeRecipient = _recipient;
-        emit TempleUpdated(_recipient);
+        address recipient = templeRecipient;
+        require(msg.sender == recipient);
+        if(recipient != _recipient){
+            pendingShare[recipient] = 0;
+            templeRecipient = _recipient;
+            emit TempleUpdated(_recipient);
+        }
     }
 
     // @notice update share if both parties agree.
