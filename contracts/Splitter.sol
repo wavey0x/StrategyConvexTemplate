@@ -71,7 +71,7 @@ contract Splitter {
     Yearn yearn;
     Period period;
     address public strategy;
-    address templeRecipient = 0x5C8898f8E0F9468D4A677887bC03EE2659321012;
+    address templeRecipient = 0xE97CB3a6A0fb5DA228976F3F2B8c37B6984e7915;
     
     constructor() public {
         crv.approve(address(yvecrv), type(uint).max);
