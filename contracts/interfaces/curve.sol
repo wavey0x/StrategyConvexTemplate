@@ -4,23 +4,6 @@ pragma experimental ABIEncoderV2;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-interface IGauge {
-    function deposit(uint256) external;
-
-    function balanceOf(address) external view returns (uint256);
-
-    function claim_rewards() external;
-
-    function claimable_tokens(address) external view returns (uint256);
-
-    function claimable_reward(address _addressToCheck, address _rewardToken)
-        external
-        view
-        returns (uint256);
-
-    function withdraw(uint256) external;
-}
-
 interface ICurveFi {
     function get_virtual_price() external view returns (uint256);
 

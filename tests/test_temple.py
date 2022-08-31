@@ -21,7 +21,6 @@ def test_split(
     pool
 ):
 
-    assert False
     target_tvl_dominance = .95
 
     yearn_weights_to_test = [
@@ -38,7 +37,7 @@ def test_split(
 
     print_debug = False
     x = target_tvl_dominance + 0.05
-    splitter.setStrategy(strategy, {'from':gov})
+    # splitter.setStrategy(strategy, {'from':gov})
     amount_temple = token.balanceOf(whale) * x
     vault.deposit(amount_temple, {'from':whale})
     token.transfer(gov, token.balanceOf(whale),{'from':whale})

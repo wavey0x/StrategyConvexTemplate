@@ -119,8 +119,6 @@ abstract contract StrategyConvexBase is BaseStrategy {
         IERC20(0xD533a949740bb3306d119CC777fa900bA034cd52);
     IERC20 internal constant convexToken =
         IERC20(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    IERC20 internal constant weth =
-        IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     ISplit public split;
 
     // keeper stuff
@@ -246,12 +244,17 @@ abstract contract StrategyConvexBase is BaseStrategy {
     }
 
     // 
-    function setSplit(address _split) external onlyGovernance {
-        require(address(split) != _split);
-        crv.approve(address(split), 0);
-        split = ISplit(_split);
-        crv.approve(address(_split), type(uint256).max);
-        emit SplitAddressUpdated(_split);
+    function setSplit(address _new_split) external onlyGovernance {
+        address old_split = address(split);
+        require(old_split != _new_split);
+        split = ISplit(_new_split);
+
+        crv.approve(old_split, 0);
+        crv.approve(_new_split, type(uint256).max);
+        convexToken.approve(old_split, 0);
+        convexToken.approve(_new_split, type(uint256).max);
+        
+        emit SplitAddressUpdated(_new_split);
     }
 }
 
@@ -261,15 +264,7 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
 
     // Curve stuff
     ICurveFi public curve; // Curve Pool, this is our pool specific to this vault
-
-    bool public checkEarmark; // this determines if we should check if we need to earmark rewards before harvesting
-
-    // use Curve to sell our CVX and CRV rewards to WETH
-    ICurveFi internal constant crveth =
-        ICurveFi(0x8301AE4fc9c624d1D396cbDAa1ed877821D7C511); // use curve's new CRV-ETH crypto pool to sell our CRV
-    ICurveFi internal constant cvxeth =
-        ICurveFi(0xB576491F1E6e5E62f1d8F26062Ee822B40B0E0d4); // use curve's new CVX-ETH crypto pool to sell our CVX
-
+    
     // check for cloning
     bool internal isOriginal = true;
 
@@ -354,10 +349,8 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
 
         // want = Curve LP
         want.approve(address(depositContract), type(uint256).max);
-        convexToken.approve(address(cvxeth), type(uint256).max);
-        weth.approve(address(crveth), type(uint256).max);
-        crv.approve(address(crveth), type(uint256).max);
         crv.approve(_split, type(uint256).max);
+        convexToken.approve(_split, type(uint256).max);
 
         // setup our rewards contract
         (address lptoken, , , address _rewardsContract, , ) =
@@ -381,14 +374,6 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
             uint256 _debtPayment
         )
     {
-        // this claims our CRV, CVX, and any extra tokens like SNX or ANKR. no harm leaving this true even if no extra rewards currently.
-        rewardsContract.getReward(address(this), true);
-
-        _sellCvx();
-        _buyCRV();
-        _splitCRV();
-
-
         // debtOustanding will only be > 0 in the event of revoking or if we need to rebalance from a withdrawal or lowering the debtRatio
         if (_debtOutstanding > 0) {
             uint256 _stakedBal = stakedBalance();
@@ -451,20 +436,6 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
             return false;
         }
 
-        // only check if we need to earmark on vaults we know are problematic
-        if (checkEarmark) {
-            // don't harvest if we need to earmark convex rewards
-            if (needsEarmarkReward()) {
-                return false;
-            }
-        }
-
-        // harvest if we have a profit to claim at our upper limit without considering gas price
-        uint256 claimableProfit = claimableProfitInUsdt();
-        if (claimableProfit > harvestProfitMax) {
-            return true;
-        }
-
         // check if the base fee gas price is higher than we allow. if it is, block harvests.
         if (!isBaseFeeAcceptable()) {
             return false;
@@ -472,17 +443,6 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
 
         // trigger if we want to manually harvest, but only if our gas price is acceptable
         if (forceHarvestTriggerOnce) {
-            return true;
-        }
-
-        // harvest if we have a sufficient profit to claim, but only if our gas price is acceptable
-        if (claimableProfit > harvestProfitMin) {
-            return true;
-        }
-
-        StrategyParams memory params = vault.strategies(address(this));
-        // harvest no matter what once we reach our maxDelay
-        if (block.timestamp.sub(params.lastReport) > maxReportDelay) {
             return true;
         }
 
@@ -495,63 +455,8 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
         return false;
     }
 
-    // Sells our CRV and CVX on Curve, then WETH -> stables together on UniV3
-    function _sellCvx() internal {
-        uint256 _amount = convexToken.balanceOf(address(this));
-        if (_amount > 1e17) {
-            // don't want to swap dust or we might revert
-            cvxeth.exchange(1, 0, _amount, 0, false);
-        }
-        
-    }
-
-    function _buyCRV() internal {
-        uint256 _wethBalance = weth.balanceOf(address(this));
-        if (_wethBalance > 1e15) {
-            // don't want to swap dust or we might revert
-            crveth.exchange(0, 1, _wethBalance, 0, false);
-        }
-    }
-
-    function _splitCRV() internal {
+    function callSplit() public onlyEmergencyAuthorized {
         split.split();
-    }
-
-    /// @notice The value in dollars that our claimable rewards are worth (in USDT, 6 decimals).
-    function claimableProfitInUsdt() public view returns (uint256) {
-        // calculations pulled directly from CVX's contract for minting CVX per CRV claimed
-        uint256 totalCliffs = 1_000;
-        uint256 maxSupply = 100 * 1_000_000 * 1e18; // 100mil
-        uint256 reductionPerCliff = 100_000 * 1e18; // 100,000
-        uint256 supply = convexToken.totalSupply();
-        uint256 mintableCvx;
-
-        uint256 cliff = supply.div(reductionPerCliff);
-        uint256 _claimableBal = claimableBalance();
-        //mint if below total cliffs
-        if (cliff < totalCliffs) {
-            //for reduction% take inverse of current cliff
-            uint256 reduction = totalCliffs.sub(cliff);
-            //reduce
-            mintableCvx = _claimableBal.mul(reduction).div(totalCliffs);
-
-            //supply cap check
-            uint256 amtTillMax = maxSupply.sub(supply);
-            if (mintableCvx > amtTillMax) {
-                mintableCvx = amtTillMax;
-            }
-        }
-
-        // our chainlink oracle returns prices normalized to 8 decimals, we convert it to 6
-        IOracle ethOracle = IOracle(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
-        uint256 ethPrice = ethOracle.latestAnswer().div(1e2); // 1e8 div 1e2 = 1e6
-        uint256 crvPrice = crveth.price_oracle().mul(ethPrice).div(1e18); // 1e18 mul 1e6 div 1e18 = 1e6
-        uint256 cvxPrice = cvxeth.price_oracle().mul(ethPrice).div(1e18); // 1e18 mul 1e6 div 1e18 = 1e6
-
-        uint256 crvValue = crvPrice.mul(_claimableBal).div(1e18); // 1e6 mul 1e18 div 1e18 = 1e6
-        uint256 cvxValue = cvxPrice.mul(mintableCvx).div(1e18); // 1e6 mul 1e18 div 1e18 = 1e6
-
-        return crvValue.add(cvxValue);
     }
 
     // convert our keeper's eth cost into want, we don't need this anymore since we don't use baseStrategy harvestTrigger
@@ -569,13 +474,6 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
                 .isCurrentBaseFeeAcceptable();
     }
 
-    /// @notice True if someone needs to earmark rewards on Convex before keepers harvest again
-    function needsEarmarkReward() public view returns (bool needsEarmark) {
-        // check if there is any CRV we need to earmark
-        uint256 crvExpiry = rewardsContract.periodFinish();
-        return crvExpiry < block.timestamp;
-    }
-
     // include so our contract plays nicely with ether
     receive() external payable {}
 
@@ -584,16 +482,14 @@ contract StrategyConvexCrvCvxPairsClonable is StrategyConvexBase {
     // These functions are useful for setting parameters of the strategy that may need to be adjusted.
 
     // Min profit to start checking for harvests if gas is good, max will harvest no matter gas (both in USDT, 6 decimals).
-    // Credit threshold is in want token, and will trigger a harvest if credit is large enough. check earmark to look at convex's booster.
+    // Credit threshold is in want token, and will trigger a harvest if credit is large enough.
     function setHarvestTriggerParams(
         uint256 _harvestProfitMin,
         uint256 _harvestProfitMax,
-        uint256 _creditThreshold,
-        bool _checkEarmark
+        uint256 _creditThreshold
     ) external onlyVaultManagers {
         harvestProfitMin = _harvestProfitMin;
         harvestProfitMax = _harvestProfitMax;
         creditThreshold = _creditThreshold;
-        checkEarmark = _checkEarmark;
     }
 }

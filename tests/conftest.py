@@ -28,7 +28,8 @@ def tenderly_fork(web3, chain):
 
 @pytest.fixture(scope="module")
 def splitter(strategist):
-    splitter = strategist.deploy(Splitter)
+    # splitter = strategist.deploy(Splitter)
+    splitter = Contract('0x34a045499247B983d16a49A1b72D5b3b2e76e526')
     yield splitter
 
 # for this strategy, set this if we want to test CVX or CRV-ETH LPs. shouldn't need to touch anything else
@@ -56,7 +57,7 @@ def whale(accounts, use_crv, rewardsContract, vault, token):
     b = token.balanceOf(temple_ms)
     amt = rewardsContract.balanceOf(temple_ms)
     rewardsContract.withdrawAndUnwrap(amt, True, {'from': temple_ms})
-    assert token.balanceOf(temple_ms) > b
+    assert token.balanceOf(temple_ms) >= b
     token.approve(vault, 2**256-1, {'from': temple_ms})
     yield temple_ms
 
@@ -211,7 +212,8 @@ def rewardsContract(pid, booster):
 # normal gov is ychad, 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52
 @pytest.fixture(scope="module")
 def gov(accounts):
-    yield accounts.at("0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52", force=True)
+    yield accounts.at('0x0B634A8D61b09820E9F72F79cdCBc8A4D0Aad26b',force=True)
+    # yield accounts.at("0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52", force=True)
 
 
 @pytest.fixture(scope="module")
@@ -254,12 +256,13 @@ def strategist(accounts):
 # use this if you need to deploy the vault
 @pytest.fixture(scope="module")
 def vault(pm, gov, rewards, guardian, management, token, chain):
-    Vault = pm(config["dependencies"][0]).Vault
-    vault = guardian.deploy(Vault)
-    vault.initialize(token, gov, rewards, "", "", guardian, {"from": gov})
-    vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
-    vault.setManagement(management, {"from": gov})
-    chain.sleep(1)
+    # Vault = pm(config["dependencies"][0]).Vault
+    # vault = guardian.deploy(Vault)
+    # vault.initialize(token, gov, rewards, "", "", guardian, {"from": gov})
+    # vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
+    # vault.setManagement(management, {"from": gov})
+    # chain.sleep(1)
+    vault = Contract('0xe92AE2cF5b373c1713eB5855D4D3aF81D8a8aCAE')
     yield vault
 
 
@@ -295,41 +298,41 @@ def strategy(
     splitter
 ):
     # make sure to include all constructor parameters needed here
-    strategy = strategist.deploy(
-        StrategyConvexCrvCvxPairsClonable,
-        vault,
-        splitter,
-    )
-    strategy.setKeeper(keeper, {"from": gov})
+    # strategy = strategist.deploy(
+    #     StrategyConvexCrvCvxPairsClonable,
+    #     vault,
+    #     splitter,
+    # )
+    # strategy.setKeeper(keeper, {"from": gov})
 
-    # set our management fee to zero so it doesn't mess with our profit checking
-    vault.setManagementFee(0, {"from": gov})
+    # # set our management fee to zero so it doesn't mess with our profit checking
+    # vault.setManagementFee(0, {"from": gov})
 
-    # we will be migrating on our live vault instead of adding it directly
-    # old_strategy = Contract(vault.withdrawalQueue(0))
-    # vault.migrateStrategy(old_strategy, strategy, {"from": gov})
-    vault.addStrategy(strategy, 10_000, 0, 2**256-1, 0, {"from": gov})
-    strategy.setHealthCheck(healthCheck, {"from": gov})
-    strategy.setDoHealthCheck(True, {"from": gov})
-    # vault.updateStrategyDebtRatio(strategy, 10000, {"from": gov})
+    # # we will be migrating on our live vault instead of adding it directly
+    # # old_strategy = Contract(vault.withdrawalQueue(0))
+    # # vault.migrateStrategy(old_strategy, strategy, {"from": gov})
+    # vault.addStrategy(strategy, 10_000, 0, 2**256-1, 0, {"from": gov})
+    # strategy.setHealthCheck(healthCheck, {"from": gov})
+    # strategy.setDoHealthCheck(True, {"from": gov})
+    # # vault.updateStrategyDebtRatio(strategy, 10000, {"from": gov})
 
-    # earmark rewards if we are using a convex strategy
-    booster.earmarkRewards(pid, {"from": gov})
-    chain.sleep(1)
-    chain.mine(1)
+    # # earmark rewards if we are using a convex strategy
+    # booster.earmarkRewards(pid, {"from": gov})
+    # chain.sleep(1)
+    # chain.mine(1)
 
-    # make all harvests permissive unless we change the value lower
-    gasOracle.setMaxAcceptableBaseFee(2000 * 1e9, {"from": strategist_ms})
+    # # make all harvests permissive unless we change the value lower
+    # gasOracle.setMaxAcceptableBaseFee(2000 * 1e9, {"from": strategist_ms})
 
-    # set up custom params and setters
-    strategy.setHarvestTriggerParams(90000e6, 150000e6, 1e24, False, {"from": gov})
-    strategy.setMaxReportDelay(86400 * 21)
+    # # set up custom params and setters
+    # strategy.setHarvestTriggerParams(90000e6, 150000e6, 1e24, False, {"from": gov})
+    # strategy.setMaxReportDelay(86400 * 21)
 
-    # harvest to send our funds into the strategy and fix any triggers already true
-    strategy.harvest({"from": gov})
-    chain.sleep(1)
-    chain.mine(1)
-
+    # # harvest to send our funds into the strategy and fix any triggers already true
+    # strategy.harvest({"from": gov})
+    # chain.sleep(1)
+    # chain.mine(1)
+    strategy = Contract('0x06aee67AC42473E9F0e7DC1A6687A1F26C8136A3')
     yield strategy
 
 
